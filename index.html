@@ -1,62 +1,54 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
 <meta charset="UTF-8">
-<title>Strategy Graph Game</title>
+<title>Graph Strategy Game</title>
 
-<script src="https://d3js.org/d3-delaunay.v6.min.js"></script>
+<script src="https://d3js.org/d3.v7.min.js"></script>
 
 <style>
 body {
-  margin: 0;
+  font-family: sans-serif;
+}
+
+#container {
   display: flex;
-  font-family: Arial, sans-serif;
-  background: #f0f0f0;
+  gap: 20px;
 }
 
-canvas {
+#map {
   border: 1px solid black;
-  background: white;
-}
-
-#panel {
-  margin-left: 20px;
-  width: 260px;
 }
 
 #inspector {
+  width: 220px;
   border: 1px solid black;
-  background: white;
   padding: 10px;
-  height: 200px;
 }
 
-#controls {
-  margin-top: 10px;
+button {
+  margin-top: 6px;
 }
 </style>
 </head>
 
 <body>
 
-<canvas id="gameCanvas" width="800" height="600"></canvas>
+<h2>Graph Strategy Game</h2>
 
-<div id="panel">
+<button id="endTurn">Finish Turn</button>
+<p id="turnIndicator"></p>
+
+<div id="container">
+  <svg id="map" width="700" height="500"></svg>
+
   <div id="inspector">
-    Click a city to see details
+    <h3>City Inspector</h3>
+    <div id="inspectorContent">Click a city</div>
   </div>
-
-  <div id="controls">
-    Move units:
-    <input type="number" id="moveCount" min="0" value="1" style="width:60px;">
-  </div>
-
-  <button id="endTurnButton" style="margin-top:10px;">
-    Finish Turn
-  </button>
 </div>
 
-<script src="main.js"></script>
+<script src="game.js"></script>
 
 </body>
 </html>
