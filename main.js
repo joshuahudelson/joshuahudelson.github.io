@@ -186,8 +186,6 @@ function draw() {
 
   drawUI();
   }
-
-  drawUI();
 }
 
 function drawUI() {
