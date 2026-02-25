@@ -1,3 +1,5 @@
+console.log("Game starting...");
+
 const NODE_COUNT = 15;
 const MAX_CONNECTION_DISTANCE = 220;
 const MIN_CONNECTIONS = 2;
@@ -17,6 +19,10 @@ function startGame() {
   generateConnectedGraph();
   render();
 }
+
+/* -----------------------------
+   NODE GENERATION (even spacing)
+----------------------------- */
 
 function generateNodes() {
   nodes = [];
@@ -53,7 +59,7 @@ function generateNodes() {
     }
   }
 
-  // Fallback: if spacing was too strict, fill remaining normally
+  // fallback in case spacing fails
   while (nodes.length < NODE_COUNT) {
     nodes.push({
       id: nodes.length,
@@ -63,12 +69,13 @@ function generateNodes() {
   }
 }
 
-// Ensure the graph is connected first, then add extra edges
-function generateConnectedGraph() {
+/* -----------------------------
+   GRAPH GENERATION
+----------------------------- */
+
 function generateConnectedGraph() {
   edges = [];
 
-  // First ensure connectivity using a spanning tree
   let connected = [0];
   let remaining = [];
 
@@ -76,6 +83,7 @@ function generateConnectedGraph() {
     remaining.push(i);
   }
 
+  // Spanning tree ensures connectivity
   while (remaining.length > 0) {
     const a = connected[Math.floor(Math.random() * connected.length)];
     const bIndex = Math.floor(Math.random() * remaining.length);
@@ -87,7 +95,7 @@ function generateConnectedGraph() {
     remaining.splice(bIndex, 1);
   }
 
-  // Now add local connections based on distance
+  // Add nearby connections
   for (let i = 0; i < nodes.length; i++) {
     let neighbors = getNeighbors(i);
 
@@ -105,12 +113,37 @@ function generateConnectedGraph() {
   }
 }
 
+/* -----------------------------
+   HELPERS
+----------------------------- */
+
+function distance(a, b) {
+  const dx = a.x - b.x;
+  const dy = a.y - b.y;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+function getNeighbors(nodeId) {
+  const result = [];
+
+  for (const e of edges) {
+    if (e.a === nodeId) result.push(e.b);
+    if (e.b === nodeId) result.push(e.a);
+  }
+
+  return result;
+}
+
 function edgeExists(a, b) {
   return edges.some(e =>
     (e.a === a && e.b === b) ||
     (e.a === b && e.b === a)
   );
 }
+
+/* -----------------------------
+   RENDERING
+----------------------------- */
 
 function render() {
   svg.innerHTML = "";
@@ -148,21 +181,4 @@ function drawNodes() {
 
     svg.appendChild(circle);
   }
-}
-  
-function distance(a, b) {
-  const dx = a.x - b.x;
-  const dy = a.y - b.y;
-  return Math.sqrt(dx * dx + dy * dy);
-}
-
-function getNeighbors(nodeId) {
-  const result = [];
-
-  for (const e of edges) {
-    if (e.a === nodeId) result.push(e.b);
-    if (e.b === nodeId) result.push(e.a);
-  }
-
-  return result;
 }
