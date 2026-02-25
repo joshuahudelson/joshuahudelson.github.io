@@ -103,7 +103,6 @@ function pruneEdges() {
 
   edges = edges.filter(() => Math.random() < keepProbability);
 
-  // Ensure every node has at least one connection
   for (const node of nodes) {
     const connected = edges.some(e => e[0] === node.id || e[1] === node.id);
     if (!connected) {
@@ -134,11 +133,9 @@ function draw() {
   // draw edges
   ctx.lineWidth = 2;
   ctx.strokeStyle = "#444";
-
   for (const [a, b] of edges) {
     const n1 = nodes[a];
     const n2 = nodes[b];
-
     ctx.beginPath();
     ctx.moveTo(n1.x, n1.y);
     ctx.lineTo(n2.x, n2.y);
@@ -153,9 +150,8 @@ function draw() {
       ctx.beginPath();
       ctx.arc(n.x, n.y, 20, 0, Math.PI * 2);
 
-      if (n.owner === currentPlayer) ctx.fillStyle = "rgba(0, 200, 0, 0.3)"; // friendly
-      else ctx.fillStyle = "rgba(255, 165, 0, 0.3)"; // enemy
-
+      if (n.owner === currentPlayer) ctx.fillStyle = "rgba(0,200,0,0.3)";
+      else ctx.fillStyle = "rgba(255,165,0,0.3)";
       ctx.fill();
     }
   }
@@ -164,10 +160,8 @@ function draw() {
   for (const n of nodes) {
     ctx.beginPath();
     ctx.arc(n.x, n.y, 16, 0, Math.PI * 2);
-
     ctx.fillStyle = n.owner === 1 ? "#d9534f" : "#0275d8";
     ctx.fill();
-
     ctx.lineWidth = selectedNode === n.id ? 4 : 2;
     ctx.strokeStyle = "black";
     ctx.stroke();
@@ -212,13 +206,11 @@ function handleClick(event) {
   if (!clicked) return;
 
   if (selectedNode === null) {
-    // select a city if owned and has >1 unit
     if (clicked.owner === currentPlayer && clicked.units > 1) {
       selectedNode = clicked.id;
     }
   } else {
     if (clicked.id === selectedNode) {
-      // deselect
       selectedNode = null;
     } else {
       attemptMove(selectedNode, clicked.id);
@@ -234,7 +226,6 @@ function attemptMove(fromId, toId) {
   const from = nodes[fromId];
   const to = nodes[toId];
 
-  // only move to neighbors
   if (!neighbors(fromId).includes(toId)) return;
 
   const movingUnits = from.units - 1;
