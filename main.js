@@ -33,10 +33,12 @@ function generateNodes() {
     const candidate = {
       id: nodes.length,
       x: Math.random() * (width - margin * 2) + margin,
-      y: Math.random() * (height - margin * 2) + margin,
-      owner: null,
-      units: 3
+      y: Math.random() * (height - margin * margin * 0 + (height - margin * 2)) // safe range
     };
+
+    candidate.y = Math.random() * (height - margin * 2) + margin;
+    candidate.owner = null;
+    candidate.units = 3;
 
     let valid = true;
     for (const n of nodes) {
@@ -104,7 +106,6 @@ function addEdge(a, b, edgeSet) {
 
 function pruneEdges() {
   const keepProbability = 0.6;
-
   edges = edges.filter(() => Math.random() < keepProbability);
 
   for (const node of nodes) {
@@ -134,7 +135,7 @@ function pruneEdges() {
 function draw() {
   ctx.clearRect(0, 0, width, height);
 
-  // draw edges
+  // edges
   ctx.lineWidth = 2;
   ctx.strokeStyle = "#444";
   for (const [a, b] of edges) {
@@ -146,40 +147,44 @@ function draw() {
     ctx.stroke();
   }
 
-  // highlight neighbors if a city is selected
+  // highlight neighbors
   if (selectedNode !== null) {
     const neighborIds = neighbors(selectedNode);
     for (const nId of neighborIds) {
       const n = nodes[nId];
       ctx.beginPath();
-      ctx.arc(n.x, n.y, 20, 0, Math.PI * 2);
+      ctx.arc(n.x, n.y, 22, 0, Math.PI * 2);
 
-      if (n.owner === currentPlayer) ctx.fillStyle = "rgba(0,200,0,0.3)";
-      else ctx.fillStyle = "rgba(255,165,0,0.3)";
+      if (n.owner === currentPlayer) {
+        ctx.fillStyle = "rgba(0,200,0,0.3)";
+      } else {
+        ctx.fillStyle = "rgba(255,165,0,0.3)";
+      }
+
       ctx.fill();
     }
   }
 
-  // draw nodes (cities)
+  // nodes
   for (const n of nodes) {
     ctx.beginPath();
     ctx.arc(n.x, n.y, 16, 0, Math.PI * 2);
     ctx.fillStyle = n.owner === 1 ? "#d9534f" : "#0275d8";
     ctx.fill();
+
     ctx.lineWidth = selectedNode === n.id ? 4 : 2;
     ctx.strokeStyle = "black";
     ctx.stroke();
 
-// draw unit count
-ctx.fillStyle = "white";
-ctx.font = "14px Arial";
-ctx.textAlign = "center";
-ctx.textBaseline = "middle";
-
-// Only show units if the city belongs to the current player
-if (n.owner === currentPlayer) {
-  ctx.fillText(n.units, n.x, n.y);
-}
+    // Only show units for the current player's cities
+    if (n.owner === currentPlayer) {
+      ctx.fillStyle = "white";
+      ctx.font = "14px Arial";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(n.units, n.x, n.y);
+    }
+  }
 
   drawUI();
 }
@@ -191,7 +196,7 @@ function drawUI() {
   ctx.fillText("Player " + currentPlayer + "'s turn", 10, 20);
 }
 
-// ------------------- Gameplay Logic -------------------
+// ------------------- Gameplay -------------------
 
 function neighbors(nodeId) {
   return edges
@@ -206,8 +211,8 @@ function showInspector(node) {
     <strong>Units:</strong> ${node.units}<br>
     Move units:
   `;
-  moveInput.max = node.units - 1;
-  moveInput.value = Math.min(1, node.units - 1);
+  moveInput.max = Math.max(1, node.units - 1);
+  moveInput.value = 1;
 }
 
 function handleClick(event) {
@@ -271,7 +276,7 @@ function endTurn() {
   currentPlayer = currentPlayer === 1 ? 2 : 1;
 }
 
-// ------------------- Initialization -------------------
+// ------------------- Init -------------------
 
 canvas.addEventListener("click", handleClick);
 
