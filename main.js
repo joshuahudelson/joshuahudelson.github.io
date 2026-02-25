@@ -63,11 +63,7 @@ function generateNodes() {
     let valid = true;
 
     for (const n of nodes) {
-      const dx = n.x - candidate.x;
-      const dy = n.y - candidate.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-
-      if (dist < MIN_CITY_DISTANCE) {
+      if (distance(n, candidate) < MIN_CITY_DISTANCE) {
         valid = false;
         break;
       }
@@ -99,17 +95,20 @@ function generateConnectedGraph() {
 
   for (let i = 1; i < nodes.length; i++) remaining.push(i);
 
+  // Spanning tree (guarantees connectivity)
   while (remaining.length > 0) {
     const a = connected[Math.floor(Math.random() * connected.length)];
     const bIndex = Math.floor(Math.random() * remaining.length);
     const b = remaining[bIndex];
 
-    edges.push({ a, b });
-
-    connected.push(b);
-    remaining.splice(bIndex, 1);
+    if (!wouldIntersect(a, b)) {
+      edges.push({ a, b });
+      connected.push(b);
+      remaining.splice(bIndex, 1);
+    }
   }
 
+  // Add nearby edges without crossings
   for (let i = 0; i < nodes.length; i++) {
     let neighbors = getNeighbors(i);
 
@@ -119,12 +118,53 @@ function generateConnectedGraph() {
 
       const d = distance(nodes[i], nodes[j]);
 
-      if (d < MAX_CONNECTION_DISTANCE && neighbors.length < MIN_CONNECTIONS) {
+      if (
+        d < MAX_CONNECTION_DISTANCE &&
+        neighbors.length < MIN_CONNECTIONS &&
+        !wouldIntersect(i, j)
+      ) {
         edges.push({ a: i, b: j });
         neighbors = getNeighbors(i);
       }
     }
   }
+}
+
+/* -----------------------------
+   INTERSECTION CHECK
+----------------------------- */
+
+function wouldIntersect(aIndex, bIndex) {
+  const a = nodes[aIndex];
+  const b = nodes[bIndex];
+
+  for (const edge of edges) {
+    const c = nodes[edge.a];
+    const d = nodes[edge.b];
+
+    // Ignore shared endpoints
+    if (
+      edge.a === aIndex ||
+      edge.b === aIndex ||
+      edge.a === bIndex ||
+      edge.b === bIndex
+    ) continue;
+
+    if (linesIntersect(a, b, c, d)) return true;
+  }
+
+  return false;
+}
+
+function linesIntersect(p1, p2, p3, p4) {
+  function ccw(a, b, c) {
+    return (c.y - a.y) * (b.x - a.x) > (b.y - a.y) * (c.x - a.x);
+  }
+
+  return (
+    ccw(p1, p3, p4) !== ccw(p2, p3, p4) &&
+    ccw(p1, p2, p3) !== ccw(p1, p2, p4)
+  );
 }
 
 /* -----------------------------
