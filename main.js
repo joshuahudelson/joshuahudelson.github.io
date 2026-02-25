@@ -213,8 +213,11 @@ function handleClick(event) {
   if (!clicked) return;
 
   if (selectedNode === null) {
-    if (clicked.owner === currentPlayer && clicked.units > 0) {
-      selectedNode = clicked.id;
+if (
+  clicked.owner === currentPlayer &&
+  clicked.units > 0 &&
+  !movedThisTurn.has(clicked.id)
+)      selectedNode = clicked.id;
       showInspector(nodes[selectedNode]);
     }
   } else {
