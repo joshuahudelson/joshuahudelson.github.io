@@ -12,6 +12,10 @@ let edges = [];
 let currentPlayer = 1;
 let selectedNode = null;
 
+// Inspector elements
+const inspector = document.getElementById("inspector");
+const moveInput = document.getElementById("moveCount");
+
 // ------------------- Node & Graph Generation -------------------
 
 function generateNodes() {
@@ -192,6 +196,17 @@ function neighbors(nodeId) {
     .map(e => (e[0] === nodeId ? e[1] : e[0]));
 }
 
+function showInspector(node) {
+  inspector.innerHTML = `
+    <strong>City ID:</strong> ${node.id}<br>
+    <strong>Owner:</strong> Player ${node.owner}<br>
+    <strong>Units:</strong> ${node.units}<br>
+    Move units:
+  `;
+  moveInput.max = node.units - 1;
+  moveInput.value = Math.min(1, node.units - 1);
+}
+
 function handleClick(event) {
   const rect = canvas.getBoundingClientRect();
   const mx = event.clientX - rect.left;
@@ -208,13 +223,17 @@ function handleClick(event) {
   if (selectedNode === null) {
     if (clicked.owner === currentPlayer && clicked.units > 1) {
       selectedNode = clicked.id;
+      showInspector(nodes[selectedNode]);
     }
   } else {
     if (clicked.id === selectedNode) {
       selectedNode = null;
+      inspector.innerHTML = "Click a city to see details";
     } else {
-      attemptMove(selectedNode, clicked.id);
+      const unitsToMove = parseInt(moveInput.value);
+      attemptMove(selectedNode, clicked.id, unitsToMove);
       selectedNode = null;
+      inspector.innerHTML = "Click a city to see details";
       endTurn();
     }
   }
@@ -222,16 +241,16 @@ function handleClick(event) {
   draw();
 }
 
-function attemptMove(fromId, toId) {
+function attemptMove(fromId, toId, movingUnits) {
   const from = nodes[fromId];
   const to = nodes[toId];
 
   if (!neighbors(fromId).includes(toId)) return;
 
-  const movingUnits = from.units - 1;
+  movingUnits = Math.min(movingUnits, from.units - 1);
   if (movingUnits <= 0) return;
 
-  from.units = 1;
+  from.units -= movingUnits;
 
   if (to.owner === from.owner) {
     to.units += movingUnits;
