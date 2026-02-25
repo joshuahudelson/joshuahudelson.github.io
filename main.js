@@ -3,8 +3,7 @@ console.log("Game starting...");
 const NODE_COUNT = 15;
 const PLAYER_COUNT = 2;
 
-const MAX_CONNECTION_DISTANCE = 220;
-const MIN_CONNECTIONS = 2;
+const TARGET_CONNECTIONS = 3;
 
 const MAP_PADDING = 80;
 const MIN_CITY_DISTANCE = 130;
@@ -23,7 +22,7 @@ startGame();
 function startGame() {
   createPlayers();
   generateNodes();
-  generateConnectedGraph();
+  generatePlanarGraph();
   assignOwnership();
   render();
 }
@@ -84,54 +83,85 @@ function generateNodes() {
 }
 
 /* -----------------------------
-   GRAPH GENERATION
+   PLANAR GRAPH GENERATION
 ----------------------------- */
 
-function generateConnectedGraph() {
+function generatePlanarGraph() {
   edges = [];
 
-  let connected = [0];
-  let remaining = [];
+  let possibleEdges = [];
 
-  for (let i = 1; i < nodes.length; i++) remaining.push(i);
-
-  // Spanning tree (guarantees connectivity)
-  while (remaining.length > 0) {
-    const a = connected[Math.floor(Math.random() * connected.length)];
-    const bIndex = Math.floor(Math.random() * remaining.length);
-    const b = remaining[bIndex];
-
-    if (!wouldIntersect(a, b)) {
-      edges.push({ a, b });
-      connected.push(b);
-      remaining.splice(bIndex, 1);
+  // Build list of all possible edges
+  for (let i = 0; i < nodes.length; i++) {
+    for (let j = i + 1; j < nodes.length; j++) {
+      possibleEdges.push({
+        a: i,
+        b: j,
+        dist: distance(nodes[i], nodes[j])
+      });
     }
   }
 
-  // Add nearby edges without crossings
-  for (let i = 0; i < nodes.length; i++) {
-    let neighbors = getNeighbors(i);
+  // Short edges first
+  possibleEdges.sort((e1, e2) => e1.dist - e2.dist);
 
-    for (let j = 0; j < nodes.length; j++) {
-      if (i === j) continue;
-      if (edgeExists(i, j)) continue;
+  let connections = new Array(nodes.length).fill(0);
 
-      const d = distance(nodes[i], nodes[j]);
+  for (const edge of possibleEdges) {
+    if (connections[edge.a] >= TARGET_CONNECTIONS &&
+        connections[edge.b] >= TARGET_CONNECTIONS) {
+      continue;
+    }
 
-      if (
-        d < MAX_CONNECTION_DISTANCE &&
-        neighbors.length < MIN_CONNECTIONS &&
-        !wouldIntersect(i, j)
-      ) {
-        edges.push({ a: i, b: j });
-        neighbors = getNeighbors(i);
+    if (!wouldIntersect(edge.a, edge.b)) {
+      edges.push({ a: edge.a, b: edge.b });
+      connections[edge.a]++;
+      connections[edge.b]++;
+    }
+  }
+
+  ensureConnected();
+}
+
+/* -----------------------------
+   ENSURE GRAPH CONNECTED
+----------------------------- */
+
+function ensureConnected() {
+  let visited = new Set();
+  dfs(0, visited);
+
+  while (visited.size < nodes.length) {
+    let unvisited = nodes.find(n => !visited.has(n.id));
+
+    let closestVisited = null;
+    let bestDist = Infinity;
+
+    for (const v of visited) {
+      let d = distance(nodes[v], unvisited);
+      if (d < bestDist) {
+        bestDist = d;
+        closestVisited = v;
       }
     }
+
+    edges.push({ a: closestVisited, b: unvisited.id });
+    dfs(unvisited.id, visited);
+  }
+}
+
+function dfs(nodeId, visited) {
+  if (visited.has(nodeId)) return;
+  visited.add(nodeId);
+
+  for (const e of edges) {
+    if (e.a === nodeId) dfs(e.b, visited);
+    if (e.b === nodeId) dfs(e.a, visited);
   }
 }
 
 /* -----------------------------
-   INTERSECTION CHECK
+   INTERSECTION TEST
 ----------------------------- */
 
 function wouldIntersect(aIndex, bIndex) {
@@ -142,7 +172,6 @@ function wouldIntersect(aIndex, bIndex) {
     const c = nodes[edge.a];
     const d = nodes[edge.b];
 
-    // Ignore shared endpoints
     if (
       edge.a === aIndex ||
       edge.b === aIndex ||
@@ -157,14 +186,16 @@ function wouldIntersect(aIndex, bIndex) {
 }
 
 function linesIntersect(p1, p2, p3, p4) {
-  function ccw(a, b, c) {
-    return (c.y - a.y) * (b.x - a.x) > (b.y - a.y) * (c.x - a.x);
+  function orient(a, b, c) {
+    return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
   }
 
-  return (
-    ccw(p1, p3, p4) !== ccw(p2, p3, p4) &&
-    ccw(p1, p2, p3) !== ccw(p1, p2, p4)
-  );
+  let o1 = orient(p1, p2, p3);
+  let o2 = orient(p1, p2, p4);
+  let o3 = orient(p3, p4, p1);
+  let o4 = orient(p3, p4, p2);
+
+  return o1 * o2 < 0 && o3 * o4 < 0;
 }
 
 /* -----------------------------
@@ -189,30 +220,12 @@ function distance(a, b) {
   return Math.sqrt(dx * dx + dy * dy);
 }
 
-function getNeighbors(nodeId) {
-  const result = [];
-
-  for (const e of edges) {
-    if (e.a === nodeId) result.push(e.b);
-    if (e.b === nodeId) result.push(e.a);
-  }
-
-  return result;
-}
-
-function edgeExists(a, b) {
-  return edges.some(
-    e => (e.a === a && e.b === b) || (e.a === b && e.b === a)
-  );
-}
-
 /* -----------------------------
    RENDER
 ----------------------------- */
 
 function render() {
   svg.innerHTML = "";
-
   drawEdges();
   drawNodes();
 }
