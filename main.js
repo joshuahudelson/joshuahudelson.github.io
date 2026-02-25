@@ -229,7 +229,6 @@ if (
       attemptMove(selectedNode, clicked.id, unitsToMove);
       selectedNode = null;
       inspector.innerHTML = "Click a city to see details";
-      endTurn();
     }
   }
 
