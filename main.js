@@ -1,271 +1,238 @@
-const canvas = document.getElementById("gameCanvas");
-const ctx = canvas.getContext("2d");
+const width = 700;
+const height = 500;
 
-const width = canvas.width;
-const height = canvas.height;
+const svg = d3.select("#map");
 
-const NODE_COUNT = 15;
+let currentPlayer = 0;
+const numPlayers = 2;
 
-let nodes = [];
-let edges = [];
+const turnIndicator = document.getElementById("turnIndicator");
+const inspector = document.getElementById("inspectorContent");
+const endTurnBtn = document.getElementById("endTurn");
 
-let currentPlayer = 1;
-let selectedNode = null;
-
-let movedThisTurn = new Set();
-
-const inspector = document.getElementById("inspector");
-const moveInput = document.getElementById("moveCount");
-const endTurnButton = document.getElementById("endTurnButton");
-
-function generateNodes() {
-  nodes = [];
-
-  const minDistance = 110;
-  const margin = 70;
-
-  while (nodes.length < NODE_COUNT) {
-    const candidate = {
-      id: nodes.length,
-      x: Math.random() * (width - margin * 2) + margin,
-      y: Math.random() * (height - margin * 2) + margin,
-      owner: null,
-      units: 3
-    };
-
-    let valid = true;
-    for (const n of nodes) {
-      const dx = n.x - candidate.x;
-      const dy = n.y - candidate.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < minDistance) {
-        valid = false;
-        break;
-      }
-    }
-
-    if (valid) nodes.push(candidate);
-  }
-
-  assignOwnership();
+function updateTurnText() {
+  turnIndicator.textContent = "Player " + (currentPlayer + 1) + "'s turn";
 }
 
-function assignOwnership() {
-  const shuffled = [...nodes].sort(() => Math.random() - 0.5);
-  shuffled.forEach((node, i) => {
-    node.owner = i < NODE_COUNT / 2 ? 1 : 2;
+updateTurnText();
+
+/* ---------------------------
+Create graph
+--------------------------- */
+
+const nodes = d3.range(18).map(i => ({
+  id: i,
+  owner: i < 4 ? 0 : i < 8 ? 1 : -1,
+  units: Array.from(
+    { length: i < 8 ? 3 : 0 },
+    () => ({ moved: false })
+  )
+}));
+
+const links = [];
+
+nodes.forEach(a => {
+  nodes.forEach(b => {
+    if (a.id < b.id && Math.random() < 0.15) {
+      links.push({ source: a.id, target: b.id });
+    }
+  });
+});
+
+const simulation = d3.forceSimulation(nodes)
+  .force("link", d3.forceLink(links).distance(90))
+  .force("charge", d3.forceManyBody().strength(-200))
+  .force("center", d3.forceCenter(width / 2, height / 2));
+
+/* ---------------------------
+Draw links
+--------------------------- */
+
+const link = svg.selectAll("line")
+  .data(links)
+  .enter()
+  .append("line");
+
+/* ---------------------------
+Draw nodes
+--------------------------- */
+
+const node = svg.selectAll("circle")
+  .data(nodes)
+  .enter()
+  .append("circle")
+  .attr("r", 18)
+  .on("click", onCityClick);
+
+const labels = svg.selectAll("text")
+  .data(nodes)
+  .enter()
+  .append("text")
+  .attr("text-anchor", "middle")
+  .attr("dy", ".35em")
+  .style("pointer-events", "none");
+
+/* ---------------------------
+Helpers
+--------------------------- */
+
+function movableUnits(city) {
+  return city.units.filter(u => !u.moved);
+}
+
+function neighbors(city) {
+  return links
+    .filter(l => l.source.id === city.id || l.target.id === city.id)
+    .map(l => (l.source.id === city.id ? l.target : l.source));
+}
+
+function cityColor(city) {
+  if (city.owner === -1) return "#cccccc";
+
+  const base = city.owner === 0 ? "#4a90e2" : "#e24a4a";
+  const remaining = movableUnits(city).length;
+
+  if (city.owner === currentPlayer && remaining > 0) {
+    return d3.color(base).brighter(0.8);
+  }
+
+  return base;
+}
+
+function updateLabels() {
+  labels.text(d => {
+    if (d.owner === currentPlayer) {
+      return d.units.length;
+    }
+    return "";
   });
 }
 
-function generateEdges() {
-  edges = [];
-
-  const points = nodes.map(n => [n.x, n.y]);
-  const delaunay = d3.Delaunay.from(points);
-  const triangles = delaunay.triangles;
-
-  const edgeSet = new Set();
-
-  for (let i = 0; i < triangles.length; i += 3) {
-    addEdge(triangles[i], triangles[i + 1], edgeSet);
-    addEdge(triangles[i + 1], triangles[i + 2], edgeSet);
-    addEdge(triangles[i + 2], triangles[i], edgeSet);
-  }
-
-  pruneEdges();
+function updateColors() {
+  node.attr("fill", d => cityColor(d));
 }
 
-function addEdge(a, b, edgeSet) {
-  const key = a < b ? `${a}-${b}` : `${b}-${a}`;
-  if (!edgeSet.has(key)) {
-    edgeSet.add(key);
-    edges.push([a, b]);
+updateLabels();
+updateColors();
+
+/* ---------------------------
+Click city
+--------------------------- */
+
+let selectedCity = null;
+
+function onCityClick(event, city) {
+  selectedCity = city;
+
+  const available = movableUnits(city).length;
+
+  let html = "";
+  html += "Owner: " + (city.owner === -1 ? "Neutral" : "Player " + (city.owner + 1)) + "<br>";
+  html += "Units: " + city.units.length + "<br>";
+  html += "Units that can move: " + available + "<br><br>";
+
+  if (city.owner === currentPlayer && available > 0) {
+    html += "Move units:<br>";
+    html += `<input id="moveAmount" type="number" min="1" max="${available}" value="1"><br>`;
+    html += `<button id="moveButton">Select destination</button>`;
   }
-}
 
-function pruneEdges() {
-  const keepProbability = 0.6;
-  edges = edges.filter(() => Math.random() < keepProbability);
+  inspector.innerHTML = html;
 
-  for (const node of nodes) {
-    const connected = edges.some(e => e[0] === node.id || e[1] === node.id);
-    if (!connected) {
-      let nearest = null;
-      let bestDist = Infinity;
-
-      for (const other of nodes) {
-        if (other.id === node.id) continue;
-
-        const dx = node.x - other.x;
-        const dy = node.y - other.y;
-        const d = Math.sqrt(dx * dx + dy * dy);
-
-        if (d < bestDist) {
-          bestDist = d;
-          nearest = other.id;
-        }
-      }
-
-      edges.push([node.id, nearest]);
-    }
+  if (city.owner === currentPlayer && available > 0) {
+    document.getElementById("moveButton").onclick = startMoveMode;
   }
 }
 
-function neighbors(nodeId) {
-  return edges
-    .filter(e => e[0] === nodeId || e[1] === nodeId)
-    .map(e => (e[0] === nodeId ? e[1] : e[0]));
+/* ---------------------------
+Move mode
+--------------------------- */
+
+let moveAmount = 0;
+let moveSource = null;
+
+function startMoveMode() {
+  moveAmount = parseInt(document.getElementById("moveAmount").value);
+  moveSource = selectedCity;
+
+  highlightNeighbors();
 }
 
-function draw() {
-  ctx.clearRect(0, 0, width, height);
+function highlightNeighbors() {
+  const n = neighbors(moveSource);
 
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = "#444";
-
-  for (const [a, b] of edges) {
-    const n1 = nodes[a];
-    const n2 = nodes[b];
-
-    ctx.beginPath();
-    ctx.moveTo(n1.x, n1.y);
-    ctx.lineTo(n2.x, n2.y);
-    ctx.stroke();
-  }
-
-  if (selectedNode !== null) {
-    const neighborIds = neighbors(selectedNode);
-
-    for (const nId of neighborIds) {
-      const n = nodes[nId];
-
-      ctx.beginPath();
-      ctx.arc(n.x, n.y, 22, 0, Math.PI * 2);
-
-      if (n.owner === currentPlayer) {
-        ctx.fillStyle = "rgba(0,200,0,0.3)";
-      } else {
-        ctx.fillStyle = "rgba(255,165,0,0.3)";
-      }
-
-      ctx.fill();
-    }
-  }
-
-  for (const n of nodes) {
-    ctx.beginPath();
-    ctx.arc(n.x, n.y, 16, 0, Math.PI * 2);
-
-    ctx.fillStyle = n.owner === 1 ? "#d9534f" : "#0275d8";
-    ctx.fill();
-
-    ctx.lineWidth = selectedNode === n.id ? 4 : 2;
-    ctx.strokeStyle = "black";
-    ctx.stroke();
-
-    if (n.owner === currentPlayer) {
-      ctx.fillStyle = "white";
-      ctx.font = "14px Arial";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(n.units, n.x, n.y);
-    }
-  }
-
-  ctx.fillStyle = "black";
-  ctx.font = "18px Arial";
-  ctx.fillText("Player " + currentPlayer + "'s turn", 10, 20);
-}
-
-function showInspector(node) {
-  inspector.innerHTML = `
-    <strong>City:</strong> ${node.id}<br>
-    <strong>Owner:</strong> Player ${node.owner}<br>
-    <strong>Units:</strong> ${node.units}<br>
-    Move units:
-  `;
-
-  moveInput.max = node.units;
-  moveInput.value = Math.min(1, node.units);
-}
-
-function attemptMove(fromId, toId, movingUnits) {
-  const from = nodes[fromId];
-  const to = nodes[toId];
-
-  if (!neighbors(fromId).includes(toId)) return;
-  if (movingUnits <= 0) return;
-  if (movingUnits > from.units) movingUnits = from.units;
-
-  from.units -= movingUnits;
-
-  if (to.owner === from.owner) {
-    to.units += movingUnits;
-  } else {
-    if (movingUnits > to.units) {
-      to.owner = from.owner;
-      to.units = movingUnits - to.units;
-    } else {
-      to.units -= movingUnits;
-    }
-  }
-
-  movedThisTurn.add(fromId);
-}
-
-function handleClick(event) {
-  const rect = canvas.getBoundingClientRect();
-  const mx = event.clientX - rect.left;
-  const my = event.clientY - rect.top;
-
-  const clicked = nodes.find(n => {
-    const dx = n.x - mx;
-    const dy = n.y - my;
-    return Math.sqrt(dx * dx + dy * dy) < 18;
+  node.attr("stroke", d => {
+    if (n.includes(d)) return "yellow";
+    return null;
+  }).attr("stroke-width", d => {
+    if (n.includes(d)) return 4;
+    return 1;
   });
 
-  if (!clicked) return;
-
-  if (selectedNode === null) {
-    if (
-      clicked.owner === currentPlayer &&
-      clicked.units > 0 &&
-      !movedThisTurn.has(clicked.id)
-    ) {
-      selectedNode = clicked.id;
-      showInspector(clicked);
-    }
-  } else {
-    if (clicked.id === selectedNode) {
-      selectedNode = null;
-      inspector.innerHTML = "Click a city to see details";
-    } else {
-      const unitsToMove = parseInt(moveInput.value);
-      attemptMove(selectedNode, clicked.id, unitsToMove);
-
-      selectedNode = null;
-      inspector.innerHTML = "Click a city to see details";
-    }
-  }
-
-  draw();
+  node.on("click", (event, city) => {
+    if (!n.includes(city)) return;
+    performMove(city);
+  });
 }
 
-function endTurn() {
-  currentPlayer = currentPlayer === 1 ? 2 : 1;
-  movedThisTurn.clear();
-  selectedNode = null;
-  inspector.innerHTML = "Click a city to see details";
-  draw();
+function performMove(dest) {
+  const movable = movableUnits(moveSource);
+
+  const movedUnits = movable.slice(0, moveAmount);
+
+  movedUnits.forEach(u => {
+    u.moved = true;
+    dest.units.push(u);
+  });
+
+  moveSource.units = moveSource.units.filter(u => !movedUnits.includes(u));
+
+  node.attr("stroke", null);
+
+  node.on("click", onCityClick);
+
+  updateLabels();
+  updateColors();
+
+  inspector.innerHTML = "Move completed.";
 }
 
-canvas.addEventListener("click", handleClick);
-endTurnButton.addEventListener("click", endTurn);
+/* ---------------------------
+End turn
+--------------------------- */
 
-function init() {
-  generateNodes();
-  generateEdges();
-  draw();
-}
+endTurnBtn.onclick = () => {
+  nodes.forEach(n => {
+    n.units.forEach(u => {
+      u.moved = false;
+    });
+  });
 
-init();
+  currentPlayer = (currentPlayer + 1) % numPlayers;
+
+  updateTurnText();
+  updateLabels();
+  updateColors();
+
+  inspector.innerHTML = "Turn ended.";
+};
+
+/* ---------------------------
+Simulation
+--------------------------- */
+
+simulation.on("tick", () => {
+  link
+    .attr("x1", d => d.source.x)
+    .attr("y1", d => d.source.y)
+    .attr("x2", d => d.target.x)
+    .attr("y2", d => d.target.y);
+
+  node
+    .attr("cx", d => d.x)
+    .attr("cy", d => d.y);
+
+  labels
+    .attr("x", d => d.x)
+    .attr("y", d => d.y);
+});
