@@ -29,7 +29,7 @@ function generateNodes() {
       x: Math.random() * (width - margin * 2) + margin,
       y: Math.random() * (height - margin * 2) + margin,
       owner: null,
-      units: 1
+      units: 3
     };
 
     let valid = true;
