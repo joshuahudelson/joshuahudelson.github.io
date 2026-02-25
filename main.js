@@ -170,13 +170,16 @@ function draw() {
     ctx.strokeStyle = "black";
     ctx.stroke();
 
-    // draw unit count
-    ctx.fillStyle = "white";
-    ctx.font = "14px Arial";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(n.units, n.x, n.y);
-  }
+// draw unit count
+ctx.fillStyle = "white";
+ctx.font = "14px Arial";
+ctx.textAlign = "center";
+ctx.textBaseline = "middle";
+
+// Only show units if the city belongs to the current player
+if (n.owner === currentPlayer) {
+  ctx.fillText(n.units, n.x, n.y);
+}
 
   drawUI();
 }
