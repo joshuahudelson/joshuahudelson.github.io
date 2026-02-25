@@ -1,68 +1,40 @@
-console.log("Game starting...");
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+const width = canvas.width;
+const height = canvas.height;
 
 const NODE_COUNT = 15;
-const PLAYER_COUNT = 2;
-
-const TARGET_CONNECTIONS = 3;
-
-const MAP_PADDING = 80;
-const MIN_CITY_DISTANCE = 130;
-
-const svg = document.getElementById("map");
-
-const width = svg.clientWidth;
-const height = svg.clientHeight;
 
 let nodes = [];
 let edges = [];
-let players = [];
-
-startGame();
-
-function startGame() {
-  createPlayers();
-  generateNodes();
-  generatePlanarGraph();
-  assignOwnership();
-  render();
-}
-
-/* -----------------------------
-   PLAYERS
------------------------------ */
-
-function createPlayers() {
-  players = [
-    { id: 0, color: "#3b82f6" },
-    { id: 1, color: "#ef4444" }
-  ];
-}
-
-/* -----------------------------
-   NODE GENERATION
------------------------------ */
 
 function generateNodes() {
   nodes = [];
 
-  let attempts = 0;
+  const minDistance = 110;
+  const margin = 70;
   const maxAttempts = 5000;
+
+  let attempts = 0;
 
   while (nodes.length < NODE_COUNT && attempts < maxAttempts) {
     attempts++;
 
     const candidate = {
       id: nodes.length,
-      x: Math.random() * (width - MAP_PADDING * 2) + MAP_PADDING,
-      y: Math.random() * (height - MAP_PADDING * 2) + MAP_PADDING,
-      owner: null,
-      units: 1
+      x: Math.random() * (width - margin * 2) + margin,
+      y: Math.random() * (height - margin * 2) + margin
     };
 
     let valid = true;
 
     for (const n of nodes) {
-      if (distance(n, candidate) < MIN_CITY_DISTANCE) {
+      const dx = n.x - candidate.x;
+      const dy = n.y - candidate.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist < minDistance) {
         valid = false;
         break;
       }
@@ -74,191 +46,70 @@ function generateNodes() {
   while (nodes.length < NODE_COUNT) {
     nodes.push({
       id: nodes.length,
-      x: Math.random() * (width - MAP_PADDING * 2) + MAP_PADDING,
-      y: Math.random() * (height - MAP_PADDING * 2) + MAP_PADDING,
-      owner: null,
-      units: 1
+      x: Math.random() * (width - margin * 2) + margin,
+      y: Math.random() * (height - margin * 2) + margin
     });
   }
 }
 
-/* -----------------------------
-   PLANAR GRAPH GENERATION
------------------------------ */
-
-function generatePlanarGraph() {
+function generateEdges() {
   edges = [];
 
-  let possibleEdges = [];
+  const points = nodes.map(n => [n.x, n.y]);
+  const delaunay = d3.Delaunay.from(points);
+  const triangles = delaunay.triangles;
 
-  // Build list of all possible edges
-  for (let i = 0; i < nodes.length; i++) {
-    for (let j = i + 1; j < nodes.length; j++) {
-      possibleEdges.push({
-        a: i,
-        b: j,
-        dist: distance(nodes[i], nodes[j])
-      });
-    }
-  }
+  const edgeSet = new Set();
 
-  // Short edges first
-  possibleEdges.sort((e1, e2) => e1.dist - e2.dist);
+  for (let i = 0; i < triangles.length; i += 3) {
+    const a = triangles[i];
+    const b = triangles[i + 1];
+    const c = triangles[i + 2];
 
-  let connections = new Array(nodes.length).fill(0);
-
-  for (const edge of possibleEdges) {
-    if (connections[edge.a] >= TARGET_CONNECTIONS &&
-        connections[edge.b] >= TARGET_CONNECTIONS) {
-      continue;
-    }
-
-    if (!wouldIntersect(edge.a, edge.b)) {
-      edges.push({ a: edge.a, b: edge.b });
-      connections[edge.a]++;
-      connections[edge.b]++;
-    }
-  }
-
-  ensureConnected();
-}
-
-/* -----------------------------
-   ENSURE GRAPH CONNECTED
------------------------------ */
-
-function ensureConnected() {
-  let visited = new Set();
-  dfs(0, visited);
-
-  while (visited.size < nodes.length) {
-    let unvisited = nodes.find(n => !visited.has(n.id));
-
-    let closestVisited = null;
-    let bestDist = Infinity;
-
-    for (const v of visited) {
-      let d = distance(nodes[v], unvisited);
-      if (d < bestDist) {
-        bestDist = d;
-        closestVisited = v;
-      }
-    }
-
-    edges.push({ a: closestVisited, b: unvisited.id });
-    dfs(unvisited.id, visited);
+    addEdge(a, b, edgeSet);
+    addEdge(b, c, edgeSet);
+    addEdge(c, a, edgeSet);
   }
 }
 
-function dfs(nodeId, visited) {
-  if (visited.has(nodeId)) return;
-  visited.add(nodeId);
-
-  for (const e of edges) {
-    if (e.a === nodeId) dfs(e.b, visited);
-    if (e.b === nodeId) dfs(e.a, visited);
+function addEdge(a, b, edgeSet) {
+  const key = a < b ? `${a}-${b}` : `${b}-${a}`;
+  if (!edgeSet.has(key)) {
+    edgeSet.add(key);
+    edges.push([a, b]);
   }
 }
 
-/* -----------------------------
-   INTERSECTION TEST
------------------------------ */
+function draw() {
+  ctx.clearRect(0, 0, width, height);
 
-function wouldIntersect(aIndex, bIndex) {
-  const a = nodes[aIndex];
-  const b = nodes[bIndex];
+  // draw edges
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = "black";
 
-  for (const edge of edges) {
-    const c = nodes[edge.a];
-    const d = nodes[edge.b];
+  for (const [a, b] of edges) {
+    const n1 = nodes[a];
+    const n2 = nodes[b];
 
-    if (
-      edge.a === aIndex ||
-      edge.b === aIndex ||
-      edge.a === bIndex ||
-      edge.b === bIndex
-    ) continue;
-
-    if (linesIntersect(a, b, c, d)) return true;
+    ctx.beginPath();
+    ctx.moveTo(n1.x, n1.y);
+    ctx.lineTo(n2.x, n2.y);
+    ctx.stroke();
   }
 
-  return false;
-}
-
-function linesIntersect(p1, p2, p3, p4) {
-  function orient(a, b, c) {
-    return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
-  }
-
-  let o1 = orient(p1, p2, p3);
-  let o2 = orient(p1, p2, p4);
-  let o3 = orient(p3, p4, p1);
-  let o4 = orient(p3, p4, p2);
-
-  return o1 * o2 < 0 && o3 * o4 < 0;
-}
-
-/* -----------------------------
-   OWNERSHIP
------------------------------ */
-
-function assignOwnership() {
-  const shuffled = [...nodes].sort(() => Math.random() - 0.5);
-
-  shuffled.forEach((node, i) => {
-    node.owner = i % PLAYER_COUNT;
-  });
-}
-
-/* -----------------------------
-   HELPERS
------------------------------ */
-
-function distance(a, b) {
-  const dx = a.x - b.x;
-  const dy = a.y - b.y;
-  return Math.sqrt(dx * dx + dy * dy);
-}
-
-/* -----------------------------
-   RENDER
------------------------------ */
-
-function render() {
-  svg.innerHTML = "";
-  drawEdges();
-  drawNodes();
-}
-
-function drawEdges() {
-  for (const edge of edges) {
-    const a = nodes[edge.a];
-    const b = nodes[edge.b];
-
-    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-
-    line.setAttribute("x1", a.x);
-    line.setAttribute("y1", a.y);
-    line.setAttribute("x2", b.x);
-    line.setAttribute("y2", b.y);
-    line.setAttribute("stroke", "#444");
-
-    svg.appendChild(line);
+  // draw nodes
+  for (const n of nodes) {
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, 8, 0, Math.PI * 2);
+    ctx.fillStyle = "black";
+    ctx.fill();
   }
 }
 
-function drawNodes() {
-  for (const node of nodes) {
-    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-
-    const player = players[node.owner];
-
-    circle.setAttribute("cx", node.x);
-    circle.setAttribute("cy", node.y);
-    circle.setAttribute("r", 12);
-    circle.setAttribute("fill", player.color);
-    circle.setAttribute("stroke", "black");
-
-    svg.appendChild(circle);
-  }
+function init() {
+  generateNodes();
+  generateEdges();
+  draw();
 }
+
+init();
