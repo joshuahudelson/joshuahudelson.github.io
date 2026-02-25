@@ -1,8 +1,13 @@
 console.log("Game starting...");
 
 const NODE_COUNT = 15;
+const PLAYER_COUNT = 2;
+
 const MAX_CONNECTION_DISTANCE = 220;
 const MIN_CONNECTIONS = 2;
+
+const MAP_PADDING = 80;
+const MIN_CITY_DISTANCE = 130;
 
 const svg = document.getElementById("map");
 
@@ -11,34 +16,48 @@ const height = svg.clientHeight;
 
 let nodes = [];
 let edges = [];
+let players = [];
 
 startGame();
 
 function startGame() {
+  createPlayers();
   generateNodes();
   generateConnectedGraph();
+  assignOwnership();
   render();
 }
 
 /* -----------------------------
-   NODE GENERATION (even spacing)
+   PLAYERS
+----------------------------- */
+
+function createPlayers() {
+  players = [
+    { id: 0, color: "#3b82f6" },
+    { id: 1, color: "#ef4444" }
+  ];
+}
+
+/* -----------------------------
+   NODE GENERATION
 ----------------------------- */
 
 function generateNodes() {
   nodes = [];
 
-  const minDistance = 120;
-  const maxAttempts = 5000;
-
   let attempts = 0;
+  const maxAttempts = 5000;
 
   while (nodes.length < NODE_COUNT && attempts < maxAttempts) {
     attempts++;
 
     const candidate = {
       id: nodes.length,
-      x: Math.random() * (width - 60) + 30,
-      y: Math.random() * (height - 60) + 30
+      x: Math.random() * (width - MAP_PADDING * 2) + MAP_PADDING,
+      y: Math.random() * (height - MAP_PADDING * 2) + MAP_PADDING,
+      owner: null,
+      units: 1
     };
 
     let valid = true;
@@ -48,23 +67,22 @@ function generateNodes() {
       const dy = n.y - candidate.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
 
-      if (dist < minDistance) {
+      if (dist < MIN_CITY_DISTANCE) {
         valid = false;
         break;
       }
     }
 
-    if (valid) {
-      nodes.push(candidate);
-    }
+    if (valid) nodes.push(candidate);
   }
 
-  // fallback in case spacing fails
   while (nodes.length < NODE_COUNT) {
     nodes.push({
       id: nodes.length,
-      x: Math.random() * (width - 60) + 30,
-      y: Math.random() * (height - 60) + 30
+      x: Math.random() * (width - MAP_PADDING * 2) + MAP_PADDING,
+      y: Math.random() * (height - MAP_PADDING * 2) + MAP_PADDING,
+      owner: null,
+      units: 1
     });
   }
 }
@@ -79,11 +97,8 @@ function generateConnectedGraph() {
   let connected = [0];
   let remaining = [];
 
-  for (let i = 1; i < nodes.length; i++) {
-    remaining.push(i);
-  }
+  for (let i = 1; i < nodes.length; i++) remaining.push(i);
 
-  // Spanning tree ensures connectivity
   while (remaining.length > 0) {
     const a = connected[Math.floor(Math.random() * connected.length)];
     const bIndex = Math.floor(Math.random() * remaining.length);
@@ -95,7 +110,6 @@ function generateConnectedGraph() {
     remaining.splice(bIndex, 1);
   }
 
-  // Add nearby connections
   for (let i = 0; i < nodes.length; i++) {
     let neighbors = getNeighbors(i);
 
@@ -111,6 +125,18 @@ function generateConnectedGraph() {
       }
     }
   }
+}
+
+/* -----------------------------
+   OWNERSHIP
+----------------------------- */
+
+function assignOwnership() {
+  const shuffled = [...nodes].sort(() => Math.random() - 0.5);
+
+  shuffled.forEach((node, i) => {
+    node.owner = i % PLAYER_COUNT;
+  });
 }
 
 /* -----------------------------
@@ -135,14 +161,13 @@ function getNeighbors(nodeId) {
 }
 
 function edgeExists(a, b) {
-  return edges.some(e =>
-    (e.a === a && e.b === b) ||
-    (e.a === b && e.b === a)
+  return edges.some(
+    e => (e.a === a && e.b === b) || (e.a === b && e.b === a)
   );
 }
 
 /* -----------------------------
-   RENDERING
+   RENDER
 ----------------------------- */
 
 function render() {
@@ -163,7 +188,7 @@ function drawEdges() {
     line.setAttribute("y1", a.y);
     line.setAttribute("x2", b.x);
     line.setAttribute("y2", b.y);
-    line.setAttribute("stroke", "black");
+    line.setAttribute("stroke", "#444");
 
     svg.appendChild(line);
   }
@@ -173,10 +198,12 @@ function drawNodes() {
   for (const node of nodes) {
     const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
 
+    const player = players[node.owner];
+
     circle.setAttribute("cx", node.x);
     circle.setAttribute("cy", node.y);
-    circle.setAttribute("r", 10);
-    circle.setAttribute("fill", "white");
+    circle.setAttribute("r", 12);
+    circle.setAttribute("fill", player.color);
     circle.setAttribute("stroke", "black");
 
     svg.appendChild(circle);
