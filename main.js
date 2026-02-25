@@ -266,6 +266,14 @@ function endTurn() {
 
 canvas.addEventListener("click", handleClick);
 
+document.getElementById("endTurnButton").addEventListener("click", () => {
+  endTurn();
+  movedThisTurn.clear();
+  selectedNode = null;
+  inspector.innerHTML = "Click a city to see details";
+  draw();
+});
+
 function init() {
   generateNodes();
   generateEdges();
