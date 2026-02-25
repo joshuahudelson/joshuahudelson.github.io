@@ -24,7 +24,8 @@ function generateNodes() {
     const candidate = {
       id: nodes.length,
       x: Math.random() * (width - margin * 2) + margin,
-      y: Math.random() * (height - margin * 2) + margin
+      y: Math.random() * (height - margin * 2) + margin,
+      owner: null
     };
 
     let valid = true;
@@ -47,9 +48,20 @@ function generateNodes() {
     nodes.push({
       id: nodes.length,
       x: Math.random() * (width - margin * 2) + margin,
-      y: Math.random() * (height - margin * 2) + margin
+      y: Math.random() * (height - margin * 2) + margin,
+      owner: null
     });
   }
+
+  assignOwnership();
+}
+
+function assignOwnership() {
+  const shuffled = [...nodes].sort(() => Math.random() - 0.5);
+
+  shuffled.forEach((node, i) => {
+    node.owner = i < NODE_COUNT / 2 ? 1 : 2;
+  });
 }
 
 function generateEdges() {
@@ -70,6 +82,8 @@ function generateEdges() {
     addEdge(b, c, edgeSet);
     addEdge(c, a, edgeSet);
   }
+
+  pruneEdges();
 }
 
 function addEdge(a, b, edgeSet) {
@@ -80,12 +94,42 @@ function addEdge(a, b, edgeSet) {
   }
 }
 
+function pruneEdges() {
+  const keepProbability = 0.6;
+
+  edges = edges.filter(() => Math.random() < keepProbability);
+
+  // Ensure every node has at least one connection
+  for (const node of nodes) {
+    const connected = edges.some(e => e[0] === node.id || e[1] === node.id);
+
+    if (!connected) {
+      let nearest = null;
+      let bestDist = Infinity;
+
+      for (const other of nodes) {
+        if (other.id === node.id) continue;
+
+        const dx = node.x - other.x;
+        const dy = node.y - other.y;
+        const d = Math.sqrt(dx * dx + dy * dy);
+
+        if (d < bestDist) {
+          bestDist = d;
+          nearest = other.id;
+        }
+      }
+
+      edges.push([node.id, nearest]);
+    }
+  }
+}
+
 function draw() {
   ctx.clearRect(0, 0, width, height);
 
-  // draw edges
   ctx.lineWidth = 2;
-  ctx.strokeStyle = "black";
+  ctx.strokeStyle = "#444";
 
   for (const [a, b] of edges) {
     const n1 = nodes[a];
@@ -97,12 +141,18 @@ function draw() {
     ctx.stroke();
   }
 
-  // draw nodes
   for (const n of nodes) {
     ctx.beginPath();
-    ctx.arc(n.x, n.y, 8, 0, Math.PI * 2);
-    ctx.fillStyle = "black";
+    ctx.arc(n.x, n.y, 14, 0, Math.PI * 2);
+
+    if (n.owner === 1) ctx.fillStyle = "#d9534f";
+    else ctx.fillStyle = "#0275d8";
+
     ctx.fill();
+
+    ctx.strokeStyle = "black";
+    ctx.lineWidth = 2;
+    ctx.stroke();
   }
 }
 
