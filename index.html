@@ -6,7 +6,10 @@
 <body>
 
 <canvas id="gameCanvas" width="900" height="600" style="border:1px solid black;"></canvas>
-
+<div id="inspector" style="width:200px; height:200px; border:1px solid black; padding:10px; font-family:Arial;">
+  Click a city to see details
+</div>
+<input type="number" id="moveCount" min="1" value="1" style="width:50px; margin-top:5px;">
 <!-- load D3 library first -->
 <script src="https://cdn.jsdelivr.net/npm/d3-delaunay@6"></script>
 
