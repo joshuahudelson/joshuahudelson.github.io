@@ -12,6 +12,8 @@ let edges = [];
 let currentPlayer = 1;
 let selectedNode = null;
 
+// ------------------- Node & Graph Generation -------------------
+
 function generateNodes() {
   nodes = [];
 
@@ -33,12 +35,10 @@ function generateNodes() {
     };
 
     let valid = true;
-
     for (const n of nodes) {
       const dx = n.x - candidate.x;
       const dy = n.y - candidate.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
-
       if (dist < minDistance) {
         valid = false;
         break;
@@ -54,7 +54,7 @@ function generateNodes() {
       x: Math.random() * (width - margin * 2) + margin,
       y: Math.random() * (height - margin * 2) + margin,
       owner: null,
-      units: 1
+      units: 3
     });
   }
 
@@ -63,7 +63,6 @@ function generateNodes() {
 
 function assignOwnership() {
   const shuffled = [...nodes].sort(() => Math.random() - 0.5);
-
   shuffled.forEach((node, i) => {
     node.owner = i < NODE_COUNT / 2 ? 1 : 2;
   });
@@ -104,20 +103,18 @@ function pruneEdges() {
 
   edges = edges.filter(() => Math.random() < keepProbability);
 
+  // Ensure every node has at least one connection
   for (const node of nodes) {
     const connected = edges.some(e => e[0] === node.id || e[1] === node.id);
-
     if (!connected) {
       let nearest = null;
       let bestDist = Infinity;
 
       for (const other of nodes) {
         if (other.id === node.id) continue;
-
         const dx = node.x - other.x;
         const dy = node.y - other.y;
         const d = Math.sqrt(dx * dx + dy * dy);
-
         if (d < bestDist) {
           bestDist = d;
           nearest = other.id;
@@ -128,6 +125,8 @@ function pruneEdges() {
     }
   }
 }
+
+// ------------------- Drawing -------------------
 
 function draw() {
   ctx.clearRect(0, 0, width, height);
@@ -146,12 +145,11 @@ function draw() {
     ctx.stroke();
   }
 
-  // if a node is selected, highlight its neighbors
+  // highlight neighbors if a city is selected
   if (selectedNode !== null) {
     const neighborIds = neighbors(selectedNode);
     for (const nId of neighborIds) {
       const n = nodes[nId];
-
       ctx.beginPath();
       ctx.arc(n.x, n.y, 20, 0, Math.PI * 2);
 
@@ -167,16 +165,14 @@ function draw() {
     ctx.beginPath();
     ctx.arc(n.x, n.y, 16, 0, Math.PI * 2);
 
-    if (n.owner === 1) ctx.fillStyle = "#d9534f";
-    else ctx.fillStyle = "#0275d8";
-
+    ctx.fillStyle = n.owner === 1 ? "#d9534f" : "#0275d8";
     ctx.fill();
 
     ctx.lineWidth = selectedNode === n.id ? 4 : 2;
     ctx.strokeStyle = "black";
     ctx.stroke();
 
-    // unit count
+    // draw unit count
     ctx.fillStyle = "white";
     ctx.font = "14px Arial";
     ctx.textAlign = "center";
@@ -193,6 +189,8 @@ function drawUI() {
   ctx.textAlign = "left";
   ctx.fillText("Player " + currentPlayer + "'s turn", 10, 20);
 }
+
+// ------------------- Gameplay Logic -------------------
 
 function neighbors(nodeId) {
   return edges
@@ -214,11 +212,13 @@ function handleClick(event) {
   if (!clicked) return;
 
   if (selectedNode === null) {
+    // select a city if owned and has >1 unit
     if (clicked.owner === currentPlayer && clicked.units > 1) {
       selectedNode = clicked.id;
     }
   } else {
     if (clicked.id === selectedNode) {
+      // deselect
       selectedNode = null;
     } else {
       attemptMove(selectedNode, clicked.id);
@@ -234,6 +234,7 @@ function attemptMove(fromId, toId) {
   const from = nodes[fromId];
   const to = nodes[toId];
 
+  // only move to neighbors
   if (!neighbors(fromId).includes(toId)) return;
 
   const movingUnits = from.units - 1;
@@ -256,6 +257,8 @@ function attemptMove(fromId, toId) {
 function endTurn() {
   currentPlayer = currentPlayer === 1 ? 2 : 1;
 }
+
+// ------------------- Initialization -------------------
 
 canvas.addEventListener("click", handleClick);
 
