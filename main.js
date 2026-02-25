@@ -12,33 +12,25 @@ let edges = [];
 let currentPlayer = 1;
 let selectedNode = null;
 
-// Inspector elements
 const inspector = document.getElementById("inspector");
 const moveInput = document.getElementById("moveCount");
 
-// ------------------- Node & Graph Generation -------------------
+// ------------------- Node Generation -------------------
 
 function generateNodes() {
   nodes = [];
 
   const minDistance = 110;
   const margin = 70;
-  const maxAttempts = 5000;
 
-  let attempts = 0;
-
-  while (nodes.length < NODE_COUNT && attempts < maxAttempts) {
-    attempts++;
-
+  while (nodes.length < NODE_COUNT) {
     const candidate = {
       id: nodes.length,
       x: Math.random() * (width - margin * 2) + margin,
-      y: Math.random() * (height - margin * margin * 0 + (height - margin * 2)) // safe range
+      y: Math.random() * (height - margin * 2) + margin,
+      owner: null,
+      units: 3
     };
-
-    candidate.y = Math.random() * (height - margin * 2) + margin;
-    candidate.owner = null;
-    candidate.units = 3;
 
     let valid = true;
     for (const n of nodes) {
@@ -52,16 +44,6 @@ function generateNodes() {
     }
 
     if (valid) nodes.push(candidate);
-  }
-
-  while (nodes.length < NODE_COUNT) {
-    nodes.push({
-      id: nodes.length,
-      x: Math.random() * (width - margin * 2) + margin,
-      y: Math.random() * (height - margin * 2) + margin,
-      owner: null,
-      units: 3
-    });
   }
 
   assignOwnership();
@@ -165,7 +147,7 @@ function draw() {
     }
   }
 
-  // nodes
+  // cities
   for (const n of nodes) {
     ctx.beginPath();
     ctx.arc(n.x, n.y, 16, 0, Math.PI * 2);
@@ -176,7 +158,7 @@ function draw() {
     ctx.strokeStyle = "black";
     ctx.stroke();
 
-    // Only show units for the current player's cities
+    // Show units only for the current player's cities
     if (n.owner === currentPlayer) {
       ctx.fillStyle = "white";
       ctx.font = "14px Arial";
@@ -192,7 +174,6 @@ function draw() {
 function drawUI() {
   ctx.fillStyle = "black";
   ctx.font = "18px Arial";
-  ctx.textAlign = "left";
   ctx.fillText("Player " + currentPlayer + "'s turn", 10, 20);
 }
 
@@ -211,8 +192,9 @@ function showInspector(node) {
     <strong>Units:</strong> ${node.units}<br>
     Move units:
   `;
-  moveInput.max = Math.max(1, node.units - 1);
-  moveInput.value = 1;
+
+  moveInput.max = Math.max(0, node.units);
+  moveInput.value = Math.min(1, node.units);
 }
 
 function handleClick(event) {
@@ -229,7 +211,7 @@ function handleClick(event) {
   if (!clicked) return;
 
   if (selectedNode === null) {
-    if (clicked.owner === currentPlayer && clicked.units > 1) {
+    if (clicked.owner === currentPlayer && clicked.units > 0) {
       selectedNode = clicked.id;
       showInspector(nodes[selectedNode]);
     }
@@ -254,9 +236,8 @@ function attemptMove(fromId, toId, movingUnits) {
   const to = nodes[toId];
 
   if (!neighbors(fromId).includes(toId)) return;
-
-  movingUnits = Math.min(movingUnits, from.units - 1);
   if (movingUnits <= 0) return;
+  if (movingUnits > from.units) movingUnits = from.units;
 
   from.units -= movingUnits;
 
