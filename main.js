@@ -132,7 +132,7 @@ function pruneEdges() {
 function draw() {
   ctx.clearRect(0, 0, width, height);
 
-  // edges
+  // draw edges
   ctx.lineWidth = 2;
   ctx.strokeStyle = "#444";
 
@@ -146,7 +146,23 @@ function draw() {
     ctx.stroke();
   }
 
-  // nodes
+  // if a node is selected, highlight its neighbors
+  if (selectedNode !== null) {
+    const neighborIds = neighbors(selectedNode);
+    for (const nId of neighborIds) {
+      const n = nodes[nId];
+
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, 20, 0, Math.PI * 2);
+
+      if (n.owner === currentPlayer) ctx.fillStyle = "rgba(0, 200, 0, 0.3)"; // friendly
+      else ctx.fillStyle = "rgba(255, 165, 0, 0.3)"; // enemy
+
+      ctx.fill();
+    }
+  }
+
+  // draw nodes (cities)
   for (const n of nodes) {
     ctx.beginPath();
     ctx.arc(n.x, n.y, 16, 0, Math.PI * 2);
@@ -166,6 +182,9 @@ function draw() {
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(n.units, n.x, n.y);
+  }
+
+  drawUI();
   }
 
   drawUI();
