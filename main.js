@@ -15,6 +15,8 @@ let selectedNode = null;
 const inspector = document.getElementById("inspector");
 const moveInput = document.getElementById("moveCount");
 
+let movedThisTurn = new Set();
+
 // ------------------- Node Generation -------------------
 
 function generateNodes() {
