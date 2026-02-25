@@ -1,17 +1,18 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Graph Strategy Game</title>
-</head>
-<body>
-  <canvas id="gameCanvas" width="800" height="600"></canvas>
+<body style="margin:0; display:flex; font-family:Arial;">
 
-  <div id="inspector" style="width:200px; height:200px; border:1px solid black; padding:10px; font-family:Arial;">
-    Click a city to see details
+  <!-- Map on the left -->
+  <canvas id="gameCanvas" width="800" height="600" style="border:1px solid black;"></canvas>
+
+  <!-- Inspector on the right -->
+  <div style="margin-left:20px; width:250px;">
+    <div id="inspector" style="width:100%; height:200px; border:1px solid black; padding:10px;">
+      Click a city to see details
+    </div>
+    <div style="margin-top:10px;">
+      Move units: <input type="number" id="moveCount" min="1" value="1" style="width:50px;">
+    </div>
   </div>
-  <input type="number" id="moveCount" min="1" value="1" style="width:50px; margin-top:5px;">
 
+  <!-- Script at the end so DOM elements exist -->
   <script src="main.js"></script>
 </body>
-</html>
-
