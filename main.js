@@ -185,7 +185,6 @@ function draw() {
   }
 
   drawUI();
-  }
 }
 
 function drawUI() {
