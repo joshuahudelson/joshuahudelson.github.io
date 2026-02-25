@@ -19,7 +19,6 @@ function startGame() {
 }
 
 function generateNodes() {
- function generateNodes() {
   nodes = [];
 
   const minDistance = 120;
