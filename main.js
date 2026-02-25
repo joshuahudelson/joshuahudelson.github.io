@@ -101,9 +101,7 @@ function cityColor(city) {
 
 function updateLabels() {
   labels.text(d => {
-    if (d.owner === currentPlayer) {
-      return d.units.length;
-    }
+    if (d.owner === currentPlayer) return d.units.length;
     return "";
   });
 }
@@ -116,20 +114,20 @@ updateLabels();
 updateColors();
 
 /* ---------------------------
-Click city
+Inspector
 --------------------------- */
 
 let selectedCity = null;
 
-function onCityClick(event, city) {
+function openInspector(city) {
   selectedCity = city;
 
   const available = movableUnits(city).length;
 
   let html = "";
   html += "Owner: " + (city.owner === -1 ? "Neutral" : "Player " + (city.owner + 1)) + "<br>";
-  html += "Units: " + city.units.length + "<br>";
-  html += "Units that can move: " + available + "<br><br>";
+  html += "Total Units: " + city.units.length + "<br>";
+  html += "Units remaining moves: " + available + "<br><br>";
 
   if (city.owner === currentPlayer && available > 0) {
     html += "Move units:<br>";
@@ -144,6 +142,10 @@ function onCityClick(event, city) {
   }
 }
 
+function onCityClick(event, city) {
+  openInspector(city);
+}
+
 /* ---------------------------
 Move mode
 --------------------------- */
@@ -154,20 +156,14 @@ let moveSource = null;
 function startMoveMode() {
   moveAmount = parseInt(document.getElementById("moveAmount").value);
   moveSource = selectedCity;
-
   highlightNeighbors();
 }
 
 function highlightNeighbors() {
   const n = neighbors(moveSource);
 
-  node.attr("stroke", d => {
-    if (n.includes(d)) return "yellow";
-    return null;
-  }).attr("stroke-width", d => {
-    if (n.includes(d)) return 4;
-    return 1;
-  });
+  node.attr("stroke", d => n.includes(d) ? "yellow" : null)
+      .attr("stroke-width", d => n.includes(d) ? 4 : 1);
 
   node.on("click", (event, city) => {
     if (!n.includes(city)) return;
@@ -177,7 +173,6 @@ function highlightNeighbors() {
 
 function performMove(dest) {
   const movable = movableUnits(moveSource);
-
   const movedUnits = movable.slice(0, moveAmount);
 
   movedUnits.forEach(u => {
@@ -188,13 +183,13 @@ function performMove(dest) {
   moveSource.units = moveSource.units.filter(u => !movedUnits.includes(u));
 
   node.attr("stroke", null);
-
   node.on("click", onCityClick);
 
   updateLabels();
   updateColors();
 
-  inspector.innerHTML = "Move completed.";
+  // reopen inspector for same city so you can move again
+  openInspector(moveSource);
 }
 
 /* ---------------------------
