@@ -255,6 +255,7 @@ function attemptMove(fromId, toId, movingUnits) {
     } else {
       to.units -= movingUnits;
     }
+    movedThisTurn.add(fromId);
   }
 }
 
