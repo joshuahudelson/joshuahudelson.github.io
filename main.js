@@ -1,5 +1,6 @@
 const NODE_COUNT = 15;
-const EXTRA_EDGE_CHANCE = 0.25;
+const MAX_CONNECTION_DISTANCE = 220;
+const MIN_CONNECTIONS = 2;
 
 const svg = document.getElementById("map");
 
@@ -31,8 +32,10 @@ function generateNodes() {
 
 // Ensure the graph is connected first, then add extra edges
 function generateConnectedGraph() {
+function generateConnectedGraph() {
   edges = [];
 
+  // First ensure connectivity using a spanning tree
   let connected = [0];
   let remaining = [];
 
@@ -40,7 +43,6 @@ function generateConnectedGraph() {
     remaining.push(i);
   }
 
-  // Create a spanning tree
   while (remaining.length > 0) {
     const a = connected[Math.floor(Math.random() * connected.length)];
     const bIndex = Math.floor(Math.random() * remaining.length);
@@ -52,11 +54,19 @@ function generateConnectedGraph() {
     remaining.splice(bIndex, 1);
   }
 
-  // Add extra random edges
+  // Now add local connections based on distance
   for (let i = 0; i < nodes.length; i++) {
-    for (let j = i + 1; j < nodes.length; j++) {
-      if (!edgeExists(i, j) && Math.random() < EXTRA_EDGE_CHANCE) {
+    let neighbors = getNeighbors(i);
+
+    for (let j = 0; j < nodes.length; j++) {
+      if (i === j) continue;
+      if (edgeExists(i, j)) continue;
+
+      const d = distance(nodes[i], nodes[j]);
+
+      if (d < MAX_CONNECTION_DISTANCE && neighbors.length < MIN_CONNECTIONS) {
         edges.push({ a: i, b: j });
+        neighbors = getNeighbors(i);
       }
     }
   }
@@ -105,4 +115,21 @@ function drawNodes() {
 
     svg.appendChild(circle);
   }
+}
+  
+function distance(a, b) {
+  const dx = a.x - b.x;
+  const dy = a.y - b.y;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+function getNeighbors(nodeId) {
+  const result = [];
+
+  for (const e of edges) {
+    if (e.a === nodeId) result.push(e.b);
+    if (e.b === nodeId) result.push(e.a);
+  }
+
+  return result;
 }
