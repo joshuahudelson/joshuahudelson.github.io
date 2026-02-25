@@ -20,11 +20,11 @@ updateTurnText();
 Create graph
 --------------------------- */
 
-const nodes = d3.range(18).map(i => ({
+const nodes = d3.range(15).map(i => ({
   id: i,
-  owner: i < 4 ? 0 : i < 8 ? 1 : -1,
+  owner: i < 7 ? 0 : i < 14 ? 1 : -1,
   units: Array.from(
-    { length: i < 8 ? 3 : 0 },
+    { length: i < 14 ? 3 : 0 },
     () => ({ moved: false })
   )
 }));
@@ -33,15 +33,19 @@ const links = [];
 
 nodes.forEach(a => {
   nodes.forEach(b => {
-    if (a.id < b.id && Math.random() < 0.15) {
+    if (a.id < b.id && Math.random() < 0.18) {
       links.push({ source: a.id, target: b.id });
     }
   });
 });
 
+/* ---------------------------
+Force layout
+--------------------------- */
+
 const simulation = d3.forceSimulation(nodes)
   .force("link", d3.forceLink(links).distance(90))
-  .force("charge", d3.forceManyBody().strength(-200))
+  .force("charge", d3.forceManyBody().strength(-220))
   .force("center", d3.forceCenter(width / 2, height / 2));
 
 /* ---------------------------
@@ -93,7 +97,7 @@ function cityColor(city) {
   const remaining = movableUnits(city).length;
 
   if (city.owner === currentPlayer && remaining > 0) {
-    return d3.color(base).brighter(0.8);
+    return d3.color(base).brighter(0.9);
   }
 
   return base;
@@ -131,7 +135,7 @@ function openInspector(city) {
 
   if (city.owner === currentPlayer && available > 0) {
     html += "Move units:<br>";
-    html += `<input id="moveAmount" type="number" min="1" max="${available}" value="1"><br>`;
+    html += `<input id="moveAmount" type="number" min="1" max="${available}" value="1"><br><br>`;
     html += `<button id="moveButton">Select destination</button>`;
   }
 
@@ -188,7 +192,6 @@ function performMove(dest) {
   updateLabels();
   updateColors();
 
-  // reopen inspector for same city so you can move again
   openInspector(moveSource);
 }
 
@@ -213,7 +216,7 @@ endTurnBtn.onclick = () => {
 };
 
 /* ---------------------------
-Simulation
+Simulation tick
 --------------------------- */
 
 simulation.on("tick", () => {
