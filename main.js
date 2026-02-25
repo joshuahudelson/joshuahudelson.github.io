@@ -19,11 +19,45 @@ function startGame() {
 }
 
 function generateNodes() {
+ function generateNodes() {
   nodes = [];
 
-  for (let i = 0; i < NODE_COUNT; i++) {
+  const minDistance = 120;
+  const maxAttempts = 5000;
+
+  let attempts = 0;
+
+  while (nodes.length < NODE_COUNT && attempts < maxAttempts) {
+    attempts++;
+
+    const candidate = {
+      id: nodes.length,
+      x: Math.random() * (width - 60) + 30,
+      y: Math.random() * (height - 60) + 30
+    };
+
+    let valid = true;
+
+    for (const n of nodes) {
+      const dx = n.x - candidate.x;
+      const dy = n.y - candidate.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist < minDistance) {
+        valid = false;
+        break;
+      }
+    }
+
+    if (valid) {
+      nodes.push(candidate);
+    }
+  }
+
+  // Fallback: if spacing was too strict, fill remaining normally
+  while (nodes.length < NODE_COUNT) {
     nodes.push({
-      id: i,
+      id: nodes.length,
       x: Math.random() * (width - 60) + 30,
       y: Math.random() * (height - 60) + 30
     });
