@@ -1,7 +1,9 @@
 const width = 700;
 const height = 500;
 
-const svg = d3.select("#map");
+const svg = d3.select("#map")
+  .attr("width", width)
+  .attr("height", height);
 
 let currentPlayer = 0;
 const numPlayers = 2;
@@ -40,22 +42,25 @@ nodes.forEach(a => {
 });
 
 /* ---------------------------
-Force layout
+Simulation
 --------------------------- */
 
 const simulation = d3.forceSimulation(nodes)
-  .force("link", d3.forceLink(links).distance(90))
+  .force("link", d3.forceLink(links).distance(90).strength(0.5))
   .force("charge", d3.forceManyBody().strength(-220))
   .force("center", d3.forceCenter(width / 2, height / 2));
 
 /* ---------------------------
-Draw links
+Draw edges (FIXED)
 --------------------------- */
 
 const link = svg.selectAll("line")
   .data(links)
   .enter()
-  .append("line");
+  .append("line")
+  .attr("stroke", "#555")
+  .attr("stroke-width", 2)
+  .attr("opacity", 0.8);
 
 /* ---------------------------
 Draw nodes
