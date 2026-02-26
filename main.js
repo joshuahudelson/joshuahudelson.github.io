@@ -61,28 +61,51 @@ function generateNodes(){
 }
 
 // ---------------------------
-// Generate planar edges using Delaunay triangulation
+// Generate planar edges using MST + optional extra edges
 // ---------------------------
 function generateEdges(){
   edges = [];
-  const points = nodes.map(n=>[n.x,n.y]);
-  const delaunay = Delaunator.from(points);
-  const triangles = delaunay.triangles;
 
-  for(let i=0;i<triangles.length;i+=3){
-    const a = triangles[i], b = triangles[i+1], c = triangles[i+2];
-    addEdge(a,b); addEdge(b,c); addEdge(c,a);
+  // Build all possible edges with distances
+  let allEdges = [];
+  for(let i=0;i<nodes.length;i++){
+    for(let j=i+1;j<nodes.length;j++){
+      allEdges.push({a:i,b:j,dist:distance(nodes[i],nodes[j])});
+    }
+  }
+
+  // Sort edges by distance
+  allEdges.sort((e1,e2)=>e1.dist - e2.dist);
+
+  // Union-Find for MST
+  const parent = Array(nodes.length).fill(0).map((_,i)=>i);
+  function find(u){ return parent[u]===u?u:(parent[u]=find(parent[u])); }
+  function union(u,v){ parent[find(u)]=find(v); }
+
+  // Build MST
+  for(let e of allEdges){
+    if(find(e.a)!==find(e.b)){
+      edges.push({a:e.a,b:e.b});
+      union(e.a,e.b);
+    }
+  }
+
+  // Optional: add a few extra edges to make map interesting
+  let extraEdges = 5; // you can tweak this number
+  for(let e of allEdges){
+    if(extraEdges<=0) break;
+    if(!edges.some(edge=> (edge.a===e.a && edge.b===e.b) || (edge.a===e.b && edge.b===e.a))){
+      edges.push({a:e.a,b:e.b});
+      extraEdges--;
+    }
   }
 
   // Ensure at least one connection between clusters
   const cluster1 = nodes.filter(n=>n.owner===1);
   const cluster2 = nodes.filter(n=>n.owner===2);
-  edges.push({a:cluster1[0].id, b:cluster2[0].id});
-
-  function addEdge(i,j){
-    if(!edges.some(e=> (e.a===i && e.b===j) || (e.a===j && e.b===i))){
-      edges.push({a:i,b:j});
-    }
+  if(!edges.some(e=> (cluster1.map(n=>n.id).includes(e.a) && cluster2.map(n=>n.id).includes(e.b)) ||
+                      (cluster2.map(n=>n.id).includes(e.a) && cluster1.map(n=>n.id).includes(e.b)))){
+    edges.push({a:cluster1[0].id, b:cluster2[0].id});
   }
 }
 
