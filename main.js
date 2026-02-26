@@ -1,219 +1,201 @@
-const width = 900;
-const height = 600;
-const numPlayers = 2;
-const citiesPerPlayer = 10;
-const maxConnections = 3;
+const svg = document.getElementById("map");
+const width = svg.clientWidth;
+const height = svg.clientHeight;
 
-const svg = d3.select("#map")
-  .attr("width", width)
-  .attr("height", height);
+const TOTAL_NODES = 15;
+const PLAYERS = 2;
+const NODES_PER_CLUSTER = Math.floor(TOTAL_NODES / PLAYERS);
 
-let cities = [];
+let nodes = [];
 let edges = [];
 
-/* -----------------------
-   Create clustered cities
------------------------ */
-function generateCities() {
-  cities = [];
-  const regionWidth = width / numPlayers;
+let selectedCity = null;
+let currentPlayer = 1;
 
-  let id = 0;
-  for (let p = 0; p < numPlayers; p++) {
-    const startX = p * regionWidth;
-    const endX = startX + regionWidth;
-
-    for (let i = 0; i < citiesPerPlayer; i++) {
-      cities.push({
-        id: id++,
-        player: p,
-        x: startX + 60 + Math.random() * (regionWidth - 120),
-        y: 60 + Math.random() * (height - 120),
-        units: 5,
-        movedUnits: 0
-      });
-    }
-  }
-}
-
-/* -----------------------
-   Geometry helpers
------------------------ */
-function distance(a, b) {
-  return Math.hypot(a.x - b.x, a.y - b.y);
-}
-
-function linesIntersect(a, b, c, d) {
-  function ccw(p1, p2, p3) {
-    return (p3.y - p1.y) * (p2.x - p1.x) >
-           (p2.y - p1.y) * (p3.x - p1.x);
-  }
-  return (
-    ccw(a, c, d) !== ccw(b, c, d) &&
-    ccw(a, b, c) !== ccw(a, b, d)
-  );
-}
-
-function edgeWouldCross(a, b) {
-  for (const e of edges) {
-    const c = cities[e.source];
-    const d = cities[e.target];
-
-    if (a === c || a === d || b === c || b === d) continue;
-
-    if (linesIntersect(a, b, c, d)) return true;
-  }
-  return false;
-}
-
-/* -----------------------
-   Create connections
------------------------ */
-function generateEdges() {
-  edges = [];
-
-  for (const city of cities) {
-    const neighbors = cities
-      .filter(c => c !== city)
-      .sort((a, b) => distance(city, a) - distance(city, b));
-
-    let connections = 0;
-
-    for (const n of neighbors) {
-      if (connections >= maxConnections) break;
-
-      if (city.player !== n.player && Math.random() > 0.2) {
-        continue; // mostly connect inside cluster
-      }
-
-      const exists = edges.some(e =>
-        (e.source === city.id && e.target === n.id) ||
-        (e.source === n.id && e.target === city.id)
-      );
-      if (exists) continue;
-
-      if (edgeWouldCross(city, n)) continue;
-
-      edges.push({ source: city.id, target: n.id });
-      connections++;
-    }
-  }
-}
-
-/* -----------------------
-   Draw map
------------------------ */
-function drawMap() {
-  svg.selectAll("*").remove();
-
-  svg.selectAll("line")
-    .data(edges)
-    .enter()
-    .append("line")
-    .attr("x1", d => cities[d.source].x)
-    .attr("y1", d => cities[d.source].y)
-    .attr("x2", d => cities[d.target].x)
-    .attr("y2", d => cities[d.target].y)
-    .attr("stroke", "#888");
-
-  const nodes = svg.selectAll("circle")
-    .data(cities)
-    .enter()
-    .append("circle")
-    .attr("cx", d => d.x)
-    .attr("cy", d => d.y)
-    .attr("r", 10)
-    .attr("fill", d => colorForCity(d))
-    .on("click", cityClicked);
-
-  svg.selectAll("text.cityLabel")
-    .data(cities)
-    .enter()
-    .append("text")
-    .attr("class", "cityLabel")
-    .attr("x", d => d.x + 12)
-    .attr("y", d => d.y + 4)
-    .text(d => visibleUnitsText(d));
-}
-
-/* -----------------------
-   City coloring
------------------------ */
-let currentPlayer = 0;
-
-function colorForCity(city) {
-  const remaining = city.units - city.movedUnits;
-
-  if (city.player === currentPlayer) {
-    return remaining > 0 ? "#4caf50" : "#a5d6a7";
-  } else {
-    return "#888";
-  }
-}
-
-function visibleUnitsText(city) {
-  if (city.player === currentPlayer) {
-    return city.units;
-  }
-  return "";
-}
-
-/* -----------------------
-   Inspector
------------------------ */
+// UI
 const inspector = document.getElementById("inspector");
 const moveInput = document.getElementById("moveAmount");
 const moveButton = document.getElementById("moveButton");
+const finishTurnButton = document.getElementById("finishTurn");
+const turnInfo = document.getElementById("turnInfo");
 
-let selectedCity = null;
-
-function cityClicked(city) {
-  selectedCity = city;
-  updateInspector();
+function rand(min, max) {
+  return Math.random() * (max - min) + min;
 }
 
-function updateInspector() {
-  if (!selectedCity) return;
+function generateClusters() {
+  const margin = 80;
 
-  const remaining = selectedCity.units - selectedCity.movedUnits;
+  for (let p = 0; p < PLAYERS; p++) {
+    const clusterCenterX =
+      p === 0 ? width * 0.3 : width * 0.7;
+    const clusterCenterY = height / 2;
+
+    let clusterNodes = [];
+
+    for (let i = 0; i < NODES_PER_CLUSTER; i++) {
+      const node = {
+        id: nodes.length,
+        x: clusterCenterX + rand(-120, 120),
+        y: clusterCenterY + rand(-120, 120),
+        owner: p + 1,
+        units: Math.floor(Math.random() * 3),
+        moved: 0
+      };
+
+      nodes.push(node);
+      clusterNodes.push(node);
+    }
+
+    // Connect cluster as a tree (no crossings)
+    for (let i = 1; i < clusterNodes.length; i++) {
+      edges.push({
+        a: clusterNodes[i - 1].id,
+        b: clusterNodes[i].id
+      });
+    }
+  }
+
+  // One bridge between clusters
+  edges.push({
+    a: 0,
+    b: NODES_PER_CLUSTER
+  });
+}
+
+function drawEdge(edge) {
+  const n1 = nodes[edge.a];
+  const n2 = nodes[edge.b];
+
+  const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+  line.setAttribute("x1", n1.x);
+  line.setAttribute("y1", n1.y);
+  line.setAttribute("x2", n2.x);
+  line.setAttribute("y2", n2.y);
+  line.setAttribute("stroke", "#555");
+  line.setAttribute("stroke-width", 2);
+
+  svg.appendChild(line);
+}
+
+function drawCity(node) {
+  const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+
+  circle.setAttribute("cx", node.x);
+  circle.setAttribute("cy", node.y);
+  circle.setAttribute("r", 16);
+
+  updateCityColor(circle, node);
+
+  circle.classList.add("city");
+
+  circle.onclick = () => selectCity(node);
+
+  svg.appendChild(circle);
+
+  node.element = circle;
+
+  const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+  label.setAttribute("x", node.x);
+  label.setAttribute("y", node.y + 4);
+  label.setAttribute("text-anchor", "middle");
+  label.setAttribute("font-size", "12");
+
+  svg.appendChild(label);
+
+  node.label = label;
+
+  updateCityLabel(node);
+}
+
+function updateCityColor(circle, node) {
+  if (node.owner === 1) circle.setAttribute("fill", "#4a90e2");
+  else circle.setAttribute("fill", "#e94e4e");
+
+  if (node.owner === currentPlayer && node.units > node.moved) {
+    circle.setAttribute("stroke", "#222");
+    circle.setAttribute("stroke-width", 3);
+  } else {
+    circle.setAttribute("stroke", "none");
+  }
+}
+
+function updateCityLabel(node) {
+  if (node.owner === currentPlayer) {
+    node.label.textContent = node.units;
+  } else {
+    node.label.textContent = "";
+  }
+}
+
+function selectCity(node) {
+  selectedCity = node;
 
   inspector.innerHTML =
-    "City " + selectedCity.id +
-    "<br>Units: " + selectedCity.units +
-    "<br>Remaining moves: " + remaining;
+    "City " + node.id +
+    "<br>Owner: Player " + node.owner +
+    "<br>Units: " + node.units +
+    "<br>Units with moves left: " + (node.units - node.moved);
+}
+
+function redrawCities() {
+  nodes.forEach(n => {
+    updateCityColor(n.element, n);
+    updateCityLabel(n);
+  });
+}
+
+function neighbors(nodeId) {
+  return edges
+    .filter(e => e.a === nodeId || e.b === nodeId)
+    .map(e => (e.a === nodeId ? e.b : e.a));
 }
 
 moveButton.onclick = () => {
   if (!selectedCity) return;
-  const amount = parseInt(moveInput.value);
+  if (selectedCity.owner !== currentPlayer) return;
 
+  const amount = parseInt(moveInput.value);
   if (isNaN(amount)) return;
 
-  const remaining = selectedCity.units - selectedCity.movedUnits;
-  if (amount > remaining) return;
+  if (selectedCity.moved + amount > selectedCity.units) return;
 
-  selectedCity.movedUnits += amount;
+  const neigh = neighbors(selectedCity.id);
+  if (neigh.length === 0) return;
 
-  updateInspector();
-  drawMap();
+  const target = nodes[neigh[0]];
+
+  selectedCity.units -= amount;
+  selectedCity.moved += amount;
+
+  if (target.owner !== currentPlayer && amount >= target.units) {
+    target.owner = currentPlayer;
+    target.units = amount - target.units;
+  } else {
+    target.units += amount;
+  }
+
+  redrawCities();
+  selectCity(selectedCity);
 };
 
-/* -----------------------
-   Turn system
------------------------ */
-document.getElementById("finishTurn").onclick = () => {
-  currentPlayer = (currentPlayer + 1) % numPlayers;
+finishTurnButton.onclick = () => {
+  currentPlayer++;
+  if (currentPlayer > PLAYERS) currentPlayer = 1;
 
-  cities.forEach(c => {
-    c.movedUnits = 0;
+  nodes.forEach(n => {
+    n.moved = 0;
   });
 
-  drawMap();
+  turnInfo.textContent = "Current Player: " + currentPlayer;
+  redrawCities();
 };
 
-/* -----------------------
-   Init
------------------------ */
-generateCities();
-generateEdges();
-drawMap();
+function init() {
+  generateClusters();
+
+  edges.forEach(drawEdge);
+  nodes.forEach(drawCity);
+}
+
+init();
