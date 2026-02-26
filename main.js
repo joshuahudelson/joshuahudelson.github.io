@@ -1,13 +1,11 @@
 const width = 900;
 const height = 700;
 
-const nodeCount = 14;
-const cols = 4; // hex layout columns
-const rows = Math.ceil(nodeCount / cols);
-
-const spacingX = 160;
-const spacingY = 140;
+const nodeCount = 14; // must be even
 const nodeRadius = 30;
+
+const spacingX = 180;
+const spacingY = 155;
 
 let nodes = [];
 let edges = [];
@@ -22,8 +20,11 @@ const nodeLayer = document.createElementNS("http://www.w3.org/2000/svg", "g");
 svg.appendChild(edgeLayer);
 svg.appendChild(nodeLayer);
 
-function generateNodes() {
+function generateHexGrid() {
   nodes = [];
+
+  let cols = 4;
+  let rows = Math.ceil(nodeCount / cols);
 
   let startX = width / 2 - ((cols - 1) * spacingX) / 2;
   let startY = height / 2 - ((rows - 1) * spacingY) / 2;
@@ -34,10 +35,10 @@ function generateNodes() {
     for (let c = 0; c < cols; c++) {
       if (id >= nodeCount) break;
 
-      const offset = r % 2 === 0 ? 0 : spacingX / 2;
+      let offset = r % 2 === 0 ? 0 : spacingX / 2;
 
-      const x = startX + c * spacingX + offset;
-      const y = startY + r * spacingY;
+      let x = startX + c * spacingX + offset;
+      let y = startY + r * spacingY;
 
       nodes.push({
         id,
@@ -78,20 +79,18 @@ function distance(a, b) {
 function generateEdges() {
   edges = [];
 
-  const maxNeighborDist = spacingX * 1.1;
+  const neighborDist = spacingX * 1.15;
 
   for (let i = 0; i < nodes.length; i++) {
     for (let j = i + 1; j < nodes.length; j++) {
-      if (distance(nodes[i], nodes[j]) < maxNeighborDist) {
-        edges.push({
-          a: nodes[i].id,
-          b: nodes[j].id
-        });
+      if (distance(nodes[i], nodes[j]) < neighborDist) {
+        edges.push({ a: nodes[i].id, b: nodes[j].id });
       }
     }
   }
 
   randomlyRemoveEdges();
+  ensureGraphConnected();
 }
 
 function friendlyConnectionExists(nodeId, testEdges) {
@@ -125,6 +124,72 @@ function randomlyRemoveEdges() {
       edges = testEdges;
       removed++;
     }
+  }
+}
+
+function getNeighbors(nodeId, edgeList = edges) {
+  const neighbors = [];
+
+  edgeList.forEach(e => {
+    if (e.a === nodeId) neighbors.push(e.b);
+    if (e.b === nodeId) neighbors.push(e.a);
+  });
+
+  return neighbors;
+}
+
+function getConnectedComponents() {
+  const visited = new Set();
+  const components = [];
+
+  for (let node of nodes) {
+    if (visited.has(node.id)) continue;
+
+    const stack = [node.id];
+    const component = [];
+
+    visited.add(node.id);
+
+    while (stack.length) {
+      const current = stack.pop();
+      component.push(current);
+
+      for (let n of getNeighbors(current)) {
+        if (!visited.has(n)) {
+          visited.add(n);
+          stack.push(n);
+        }
+      }
+    }
+
+    components.push(component);
+  }
+
+  return components;
+}
+
+function ensureGraphConnected() {
+  let components = getConnectedComponents();
+
+  while (components.length > 1) {
+    let compA = components[0];
+    let compB = components[1];
+
+    let bestPair = null;
+    let bestDist = Infinity;
+
+    for (let a of compA) {
+      for (let b of compB) {
+        let d = distance(nodes[a], nodes[b]);
+        if (d < bestDist) {
+          bestDist = d;
+          bestPair = { a, b };
+        }
+      }
+    }
+
+    edges.push(bestPair);
+    components = getConnectedComponents();
   }
 }
 
@@ -171,30 +236,30 @@ function drawNodes() {
       drawNodes();
     };
 
-    const text1 = document.createElementNS("http://www.w3.org/2000/svg", "text");
-    text1.setAttribute("x", node.x);
-    text1.setAttribute("y", node.y - 6);
-    text1.setAttribute("text-anchor", "middle");
-    text1.setAttribute("font-size", "16");
-    text1.textContent = node.units;
+    const unitsText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    unitsText.setAttribute("x", node.x);
+    unitsText.setAttribute("y", node.y - 6);
+    unitsText.setAttribute("text-anchor", "middle");
+    unitsText.setAttribute("font-size", "16");
+    unitsText.textContent = node.units;
 
-    const text2 = document.createElementNS("http://www.w3.org/2000/svg", "text");
-    text2.setAttribute("x", node.x);
-    text2.setAttribute("y", node.y + 14);
-    text2.setAttribute("text-anchor", "middle");
-    text2.setAttribute("font-size", "14");
-    text2.textContent = node.production;
+    const prodText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    prodText.setAttribute("x", node.x);
+    prodText.setAttribute("y", node.y + 14);
+    prodText.setAttribute("text-anchor", "middle");
+    prodText.setAttribute("font-size", "14");
+    prodText.textContent = node.production;
 
     group.appendChild(circle);
-    group.appendChild(text1);
-    group.appendChild(text2);
+    group.appendChild(unitsText);
+    group.appendChild(prodText);
 
     nodeLayer.appendChild(group);
   });
 }
 
 function init() {
-  generateNodes();
+  generateHexGrid();
   assignOwnershipDiagonal();
   generateEdges();
   drawEdges();
