@@ -1,7 +1,7 @@
 const width = 900;
 const height = 700;
 
-const nodeCount = 14; // must stay even
+const nodeCount = 14;
 const nodeRadius = 30;
 
 const hexSizeX = 170;
@@ -10,6 +10,25 @@ const hexSizeY = 150;
 let nodes = [];
 let edges = [];
 let activeNode = null;
+let nextUnitId = 1;
+
+const UNIT_TYPES = {
+  infantry: {
+    movement: 1,
+    attack: 2,
+    canEnterEnemy: false
+  },
+  cavalry: {
+    movement: 2,
+    attack: 3,
+    canEnterEnemy: false
+  },
+  spy: {
+    movement: 2,
+    attack: 0,
+    canEnterEnemy: true
+  }
+};
 
 const svg = document.getElementById("map");
 svg.setAttribute("width", width);
@@ -17,15 +36,15 @@ svg.setAttribute("height", height);
 
 const edgeLayer = document.createElementNS("http://www.w3.org/2000/svg", "g");
 const nodeLayer = document.createElementNS("http://www.w3.org/2000/svg", "g");
+
 svg.appendChild(edgeLayer);
 svg.appendChild(nodeLayer);
 
 function generateHexBoard() {
   nodes = [];
 
-  // axial hex coordinates
   const coords = [];
-  let radius = 2; // hex radius producing ~19 cells
+  const radius = 2;
 
   for (let q = -radius; q <= radius; q++) {
     for (let r = -radius; r <= radius; r++) {
@@ -36,11 +55,9 @@ function generateHexBoard() {
     }
   }
 
-  // shuffle and trim to nodeCount
   coords.sort(() => Math.random() - 0.5);
   const selected = coords.slice(0, nodeCount);
 
-  // center
   const centerX = width / 2;
   const centerY = height / 2;
 
@@ -55,7 +72,7 @@ function generateHexBoard() {
       x,
       y,
       owner: null,
-      units: Math.floor(Math.random() * 4) + 1,
+      units: [],
       production: Math.floor(Math.random() * 3) + 1
     });
   });
@@ -77,6 +94,22 @@ function assignOwnershipDiagonal() {
   sorted.forEach((node, i) => {
     node.owner = i < half ? 1 : 2;
   });
+}
+
+function spawnStartingUnits() {
+  nodes.forEach(node => {
+    node.units.push(createUnit("infantry", node.owner));
+    node.units.push(createUnit("cavalry", node.owner));
+  });
+}
+
+function createUnit(type, owner) {
+  return {
+    id: nextUnitId++,
+    type,
+    owner,
+    moved: false
+  };
 }
 
 function generateEdges() {
@@ -210,6 +243,10 @@ function ensureGraphConnected() {
   }
 }
 
+function countCombatUnits(node) {
+  return node.units.filter(u => u.type !== "spy").length;
+}
+
 function drawEdges() {
   edgeLayer.innerHTML = "";
 
@@ -258,7 +295,7 @@ function drawNodes() {
     units.setAttribute("y", node.y - 8);
     units.setAttribute("text-anchor", "middle");
     units.setAttribute("font-size", "18");
-    units.textContent = node.units;
+    units.textContent = countCombatUnits(node);
 
     const production = document.createElementNS("http://www.w3.org/2000/svg", "text");
     production.setAttribute("x", node.x);
@@ -270,6 +307,7 @@ function drawNodes() {
     group.appendChild(circle);
     group.appendChild(units);
     group.appendChild(production);
+
     nodeLayer.appendChild(group);
   });
 }
@@ -277,6 +315,7 @@ function drawNodes() {
 function init() {
   generateHexBoard();
   assignOwnershipDiagonal();
+  spawnStartingUnits();
   generateEdges();
   drawEdges();
   drawNodes();
