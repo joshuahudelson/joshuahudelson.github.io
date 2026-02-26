@@ -2,27 +2,17 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Planar Map Turn-Based Game</title>
+<title>Hex Map Game</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-
-<h2>Planar Map Turn-Based Game</h2>
-<div id="container">
+<div id="game-container">
   <svg id="map" width="800" height="600"></svg>
-
-  <div id="ui">
-    <div id="turnInfo">Current Player: 1</div>
-    <div id="inspector">Click on a city to see details</div>
-    <div>
-      Units to move: <input type="number" id="moveAmount" min="1" value="1">
-      <button id="moveButton">Move</button>
-    </div>
-    <button id="finishTurn">Finish Turn</button>
+  <div id="inspector">
+    <h3>City Inspector</h3>
+    <div id="node-info">Click a node to see details.</div>
   </div>
 </div>
-
-<script src="https://cdn.jsdelivr.net/npm/delaunator@5.0.0/delaunator.min.js"></script>
 <script src="main.js"></script>
 </body>
 </html>
