@@ -21,21 +21,20 @@ const finishTurnButton = document.getElementById("finishTurn");
 const turnInfo = document.getElementById("turnInfo");
 
 // ---------------------------
-// Utility functions
+// Utility
 // ---------------------------
 function rand(min,max){return Math.random()*(max-min)+min;}
 function distance(n1,n2){return Math.hypot(n1.x-n2.x,n1.y-n2.y);}
 
 // ---------------------------
-// Generate planar nodes
+// Generate nodes with clusters
 // ---------------------------
 function generateNodes(){
   nodes = [];
   const margin = 50;
 
-  // Divide map horizontally for players
   const playerZones = [
-    {xMin: margin, xMax: width/2 - margin}, // Player 1
+    {xMin: margin, xMax: width/2 - margin},   // Player 1
     {xMin: width/2 + margin, xMax: width - margin} // Player 2
   ];
 
@@ -43,18 +42,17 @@ function generateNodes(){
     const owner = i<TOTAL_NODES/2?1:2;
     const zone = playerZones[owner-1];
 
-    // Poisson-disc-like spacing
-    let valid = false;
-    let x, y;
+    let valid=false;
+    let x,y;
     while(!valid){
-      x = rand(zone.xMin, zone.xMax);
-      y = rand(margin, height-margin);
-      valid = nodes.every(n=>distance(n,{x,y})>50); // minimum spacing
+      x=rand(zone.xMin,zone.xMax);
+      y=rand(margin,height-margin);
+      valid = nodes.every(n=>distance(n,{x,y})>50);
     }
 
     nodes.push({
       id:i,
-      x, y,
+      x,y,
       owner,
       units: Math.floor(Math.random()*5),
       moved: 0
@@ -63,40 +61,29 @@ function generateNodes(){
 }
 
 // ---------------------------
-// Generate edges (planar, nearest neighbors)
+// Generate planar edges using Delaunay triangulation
 // ---------------------------
 function generateEdges(){
   edges = [];
+  const points = nodes.map(n=>[n.x,n.y]);
+  const delaunay = Delaunator.from(points);
+  const triangles = delaunay.triangles;
 
-  // Connect each node to 2-3 nearest neighbors
-  nodes.forEach(n=>{
-    const sorted = nodes
-      .filter(other=>other.id!==n.id)
-      .sort((a,b)=>distance(n,a)-distance(n,b));
-    let count = 0;
-    for(let target of sorted){
-      if(count>=3) break;
-      if(edges.some(e=> (e.a===n.id && e.b===target.id)||(e.a===target.id && e.b===n.id))) continue;
-      edges.push({a:n.id, b:target.id});
-      count++;
-    }
-  });
-
-  // Ensure clusters: each node has at least one same-player neighbor
-  nodes.forEach(n=>{
-    const samePlayer = nodes.filter(x=>x.owner===n.owner && x.id!==n.id);
-    if(!edges.some(e=> (e.a===n.id && samePlayer.map(s=>s.id).includes(e.b)) || 
-                        (e.b===n.id && samePlayer.map(s=>s.id).includes(e.a)))){
-      // connect to nearest same-player node
-      const nearest = samePlayer.reduce((a,b)=>distance(n,b)<distance(n,a)?b:a);
-      edges.push({a:n.id, b:nearest.id});
-    }
-  });
+  for(let i=0;i<triangles.length;i+=3){
+    const a = triangles[i], b = triangles[i+1], c = triangles[i+2];
+    addEdge(a,b); addEdge(b,c); addEdge(c,a);
+  }
 
   // Ensure at least one connection between clusters
   const cluster1 = nodes.filter(n=>n.owner===1);
   const cluster2 = nodes.filter(n=>n.owner===2);
   edges.push({a:cluster1[0].id, b:cluster2[0].id});
+
+  function addEdge(i,j){
+    if(!edges.some(e=> (e.a===i && e.b===j) || (e.a===j && e.b===i))){
+      edges.push({a:i,b:j});
+    }
+  }
 }
 
 // ---------------------------
@@ -196,7 +183,7 @@ moveButton.onclick = ()=>{
   const neigh=neighbors(selectedCity.id);
   if(neigh.length===0) return;
 
-  const target=nodes[neigh[0]]; // simple: first neighbor
+  const target=nodes[neigh[0]];
 
   selectedCity.units-=amount;
   selectedCity.moved+=amount;
