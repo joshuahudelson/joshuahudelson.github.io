@@ -66,7 +66,7 @@ function generateNodes(){
 function generateEdges(){
   edges = [];
 
-  // Build all possible edges with distances
+  // 1. Build all possible edges with distances
   let allEdges = [];
   for(let i=0;i<nodes.length;i++){
     for(let j=i+1;j<nodes.length;j++){
@@ -74,15 +74,14 @@ function generateEdges(){
     }
   }
 
-  // Sort edges by distance
+  // 2. Sort edges by distance (shortest first)
   allEdges.sort((e1,e2)=>e1.dist - e2.dist);
 
-  // Union-Find for MST
+  // 3. MST via Union-Find
   const parent = Array(nodes.length).fill(0).map((_,i)=>i);
   function find(u){ return parent[u]===u?u:(parent[u]=find(parent[u])); }
   function union(u,v){ parent[find(u)]=find(v); }
 
-  // Build MST
   for(let e of allEdges){
     if(find(e.a)!==find(e.b)){
       edges.push({a:e.a,b:e.b});
@@ -90,8 +89,8 @@ function generateEdges(){
     }
   }
 
-  // Optional: add a few extra edges to make map interesting
-  let extraEdges = 5; // you can tweak this number
+  // 4. Optional extra edges to make map less tree-like
+  let extraEdges = 5; // tweak this number
   for(let e of allEdges){
     if(extraEdges<=0) break;
     if(!edges.some(edge=> (edge.a===e.a && edge.b===e.b) || (edge.a===e.b && edge.b===e.a))){
@@ -100,12 +99,31 @@ function generateEdges(){
     }
   }
 
-  // Ensure at least one connection between clusters
-  const cluster1 = nodes.filter(n=>n.owner===1);
-  const cluster2 = nodes.filter(n=>n.owner===2);
-  if(!edges.some(e=> (cluster1.map(n=>n.id).includes(e.a) && cluster2.map(n=>n.id).includes(e.b)) ||
-                      (cluster2.map(n=>n.id).includes(e.a) && cluster1.map(n=>n.id).includes(e.b)))){
-    edges.push({a:cluster1[0].id, b:cluster2[0].id});
+  // 5. Extra edges **inside each cluster** to strengthen cluster connectivity
+  const clusters = [nodes.filter(n=>n.owner===1), nodes.filter(n=>n.owner===2)];
+  clusters.forEach(cluster=>{
+    let added = 0;
+    while(added<3){ // add up to 3 extra intra-cluster edges
+      const a = cluster[Math.floor(Math.random()*cluster.length)].id;
+      const b = cluster[Math.floor(Math.random()*cluster.length)].id;
+      if(a===b) continue;
+      if(!edges.some(e=> (e.a===a && e.b===b) || (e.a===b && e.b===a))){
+        edges.push({a,b});
+        added++;
+      }
+    }
+  });
+
+  // 6. Multiple edges between clusters
+  const cluster1 = clusters[0];
+  const cluster2 = clusters[1];
+  let clusterEdges = 3; // tweak this number
+  for(let i=0;i<clusterEdges;i++){
+    const a = cluster1[Math.floor(Math.random()*cluster1.length)].id;
+    const b = cluster2[Math.floor(Math.random()*cluster2.length)].id;
+    if(!edges.some(e=> (e.a===a && e.b===b) || (e.a===b && e.b===a))){
+      edges.push({a,b});
+    }
   }
 }
 
