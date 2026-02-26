@@ -20,19 +20,19 @@ const moveButton = document.getElementById("moveButton");
 const finishTurnButton = document.getElementById("finishTurn");
 const turnInfo = document.getElementById("turnInfo");
 
-function rand(min, max) { return Math.random() * (max - min) + min; }
+function rand(min,max){return Math.random()*(max-min)+min;}
 
 // ---------------------------
-// Generate random nodes
+// Generate nodes
 // ---------------------------
-function generateNodes() {
+function generateNodes(){
   nodes = [];
-  for (let i = 0; i < TOTAL_NODES; i++) {
+  for (let i=0;i<TOTAL_NODES;i++){
     nodes.push({
-      id: i,
-      x: rand(50, width-50),
-      y: rand(50, height-50),
-      owner: i < TOTAL_NODES/2 ? 1 : 2,  // roughly half-half
+      id:i,
+      x:rand(50,width-50),
+      y:rand(50,height-50),
+      owner: i<TOTAL_NODES/2?1:2,
       units: Math.floor(Math.random()*5),
       moved: 0
     });
@@ -40,53 +40,76 @@ function generateNodes() {
 }
 
 // ---------------------------
-// Edge helpers
+// Distance helper
 // ---------------------------
-function edgesCross(e1, e2) {
+function distance(n1,n2){
+  return Math.hypot(n1.x-n2.x,n1.y-n2.y);
+}
+
+// ---------------------------
+// Edge crossing check
+// ---------------------------
+function edgesCross(e1,e2){
   function ccw(A,B,C){
     return (C.y-A.y)*(B.x-A.x) > (B.y-A.y)*(C.x-A.x);
   }
   const A = nodes[e1.a], B = nodes[e1.b];
   const C = nodes[e2.a], D = nodes[e2.b];
-  return (ccw(A,C,D) != ccw(B,C,D)) && (ccw(A,B,C) != ccw(A,B,D));
+  return (ccw(A,C,D)!==ccw(B,C,D))&&(ccw(A,B,C)!==ccw(A,B,D));
 }
 
 // ---------------------------
-// Generate edges ensuring no crossings
+// Connect nodes of same player (nearest-neighbor tree)
 // ---------------------------
-function generateEdges() {
-  edges = [];
+function connectSamePlayer(){
+  for (let p=1;p<=PLAYERS;p++){
+    const group = nodes.filter(n=>n.owner===p);
+    let connected = [group[0]];
+    let remaining = group.slice(1);
 
-  // 1. Ensure each node has at least one edge to same-player node
-  nodes.forEach(n => {
-    let sameOwner = nodes.filter(x => x.owner === n.owner && x.id !== n.id);
-    if (sameOwner.length === 0) return;
-
-    let target = sameOwner[Math.floor(Math.random() * sameOwner.length)];
-    // avoid duplicates
-    if (!edges.some(e => (e.a===n.id && e.b===target.id) || (e.a===target.id && e.b===n.id))) {
-      edges.push({a:n.id, b:target.id});
+    while(remaining.length>0){
+      let nearestPair = null;
+      let minDist = Infinity;
+      connected.forEach(c=>{
+        remaining.forEach(r=>{
+          const d = distance(c,r);
+          if(d<minDist){
+            minDist=d;
+            nearestPair=[c,r];
+          }
+        });
+      });
+      edges.push({a:nearestPair[0].id,b:nearestPair[1].id});
+      connected.push(nearestPair[1]);
+      remaining = remaining.filter(n=>n.id!==nearestPair[1].id);
     }
-  });
+  }
+}
 
-  // 2. Add some extra edges (intra or inter-player) randomly
-  const extraEdges = TOTAL_NODES; // adjust for density
-  for (let i=0;i<extraEdges;i++){
-    let n1 = nodes[Math.floor(Math.random()*TOTAL_NODES)];
-    let n2 = nodes[Math.floor(Math.random()*TOTAL_NODES)];
+// ---------------------------
+// Extra edges (intra or inter-player), only if no crossing
+// ---------------------------
+function addExtraEdges(count){
+  for (let i=0;i<count;i++){
+    const n1 = nodes[Math.floor(Math.random()*TOTAL_NODES)];
+    const n2 = nodes[Math.floor(Math.random()*TOTAL_NODES)];
     if (n1.id===n2.id) continue;
-    if (edges.some(e => (e.a===n1.id && e.b===n2.id) || (e.a===n2.id && e.b===n1.id))) continue;
+    if (edges.some(e=>(e.a===n1.id && e.b===n2.id)||(e.a===n2.id && e.b===n1.id))) continue;
 
-    // check crossings
-    const newEdge = {a:n1.id, b:n2.id};
-    if (!edges.some(e => edgesCross(e,newEdge))) edges.push(newEdge);
+    // only connect nearby nodes (optional: distance threshold)
+    if(distance(n1,n2)>200) continue;
+
+    const newEdge={a:n1.id,b:n2.id};
+    if(!edges.some(e=>edgesCross(e,newEdge))){
+      edges.push(newEdge);
+    }
   }
 }
 
 // ---------------------------
 // Draw edges and nodes
 // ---------------------------
-function drawEdge(edge) {
+function drawEdge(edge){
   const n1 = nodes[edge.a], n2 = nodes[edge.b];
   const line = document.createElementNS("http://www.w3.org/2000/svg","line");
   line.setAttribute("x1",n1.x);
@@ -98,24 +121,24 @@ function drawEdge(edge) {
   svg.appendChild(line);
 }
 
-function drawCity(node) {
-  const circle = document.createElementNS("http://www.w3.org/2000/svg","circle");
+function drawCity(node){
+  const circle=document.createElementNS("http://www.w3.org/2000/svg","circle");
   circle.setAttribute("cx",node.x);
   circle.setAttribute("cy",node.y);
   circle.setAttribute("r",16);
   updateCityColor(circle,node);
   circle.classList.add("city");
-  circle.onclick = ()=>selectCity(node);
+  circle.onclick=()=>selectCity(node);
   svg.appendChild(circle);
-  node.element = circle;
+  node.element=circle;
 
-  const label = document.createElementNS("http://www.w3.org/2000/svg","text");
+  const label=document.createElementNS("http://www.w3.org/2000/svg","text");
   label.setAttribute("x",node.x);
   label.setAttribute("y",node.y+4);
   label.setAttribute("text-anchor","middle");
   label.setAttribute("font-size","12");
   svg.appendChild(label);
-  node.label = label;
+  node.label=label;
 
   updateCityLabel(node);
 }
@@ -125,17 +148,15 @@ function drawCity(node) {
 // ---------------------------
 function updateCityColor(circle,node){
   circle.setAttribute("fill", node.owner===1?"#4a90e2":"#e94e4e");
-  if (node.owner===currentPlayer && node.units-node.moved>0){
+  if(node.owner===currentPlayer && node.units-node.moved>0){
     circle.setAttribute("stroke","#222");
     circle.setAttribute("stroke-width",3);
-  } else {
-    circle.setAttribute("stroke","none");
-  }
+  } else circle.setAttribute("stroke","none");
 }
 
 function updateCityLabel(node){
-  if (node.owner===currentPlayer) node.label.textContent = node.units-node.moved;
-  else node.label.textContent = "";
+  if(node.owner===currentPlayer) node.label.textContent=node.units-node.moved;
+  else node.label.textContent="";
 }
 
 // ---------------------------
@@ -147,7 +168,7 @@ function selectCity(node){
 }
 
 function updateInspector(){
-  if (!selectedCity) return;
+  if(!selectedCity) return;
   const remaining = selectedCity.units-selectedCity.moved;
   inspector.innerHTML=
     "City "+selectedCity.id+
@@ -160,9 +181,7 @@ function updateInspector(){
 // Neighbor helper
 // ---------------------------
 function neighbors(nodeId){
-  return edges
-    .filter(e=>e.a===nodeId || e.b===nodeId)
-    .map(e=>e.a===nodeId?e.b:e.a);
+  return edges.filter(e=>e.a===nodeId || e.b===nodeId).map(e=>e.a===nodeId?e.b:e.a);
 }
 
 function redrawCities(){
@@ -176,29 +195,26 @@ function redrawCities(){
 // Move units
 // ---------------------------
 moveButton.onclick = ()=>{
-  if (!selectedCity) return;
-  if (selectedCity.owner!==currentPlayer) return;
+  if(!selectedCity) return;
+  if(selectedCity.owner!==currentPlayer) return;
 
-  const amount = parseInt(moveInput.value);
-  if (isNaN(amount)) return;
+  const amount=parseInt(moveInput.value);
+  if(isNaN(amount)) return;
+  const remaining=selectedCity.units-selectedCity.moved;
+  if(amount>remaining) return;
 
-  const remaining = selectedCity.units-selectedCity.moved;
-  if (amount>remaining) return;
+  const neigh=neighbors(selectedCity.id);
+  if(neigh.length===0) return;
 
-  const neigh = neighbors(selectedCity.id);
-  if (neigh.length===0) return;
-
-  const target = nodes[neigh[0]];
+  const target=nodes[neigh[0]];
 
   selectedCity.units-=amount;
   selectedCity.moved+=amount;
 
-  if (target.owner!==currentPlayer && amount>=target.units){
+  if(target.owner!==currentPlayer && amount>=target.units){
     target.owner=currentPlayer;
     target.units=amount-target.units;
-  } else {
-    target.units+=amount;
-  }
+  } else target.units+=amount;
 
   redrawCities();
   updateInspector();
@@ -209,7 +225,7 @@ moveButton.onclick = ()=>{
 // ---------------------------
 finishTurnButton.onclick = ()=>{
   currentPlayer++;
-  if (currentPlayer>PLAYERS) currentPlayer=1;
+  if(currentPlayer>PLAYERS) currentPlayer=1;
   nodes.forEach(n=>n.moved=0);
   turnInfo.textContent="Current Player: "+currentPlayer;
   redrawCities();
@@ -220,7 +236,8 @@ finishTurnButton.onclick = ()=>{
 // ---------------------------
 function init(){
   generateNodes();
-  generateEdges();
+  connectSamePlayer();
+  addExtraEdges(TOTAL_NODES); // intra or inter-player, no crossing
   edges.forEach(drawEdge);
   nodes.forEach(drawCity);
 }
