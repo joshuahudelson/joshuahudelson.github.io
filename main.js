@@ -4,7 +4,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const width = svg.getAttribute("width");
   const height = svg.getAttribute("height");
 
-  const nodeRadius = 20; // 40px diameter
+  const nodeRadius = 30; // 60px diameter
   const totalNodes = 14;
   const rows = 4;
   const cols = Math.ceil(totalNodes / rows);
@@ -12,7 +12,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let nodes = [];
   let edges = [];
   let selectedNode = null;
-  let currentPlayer = 1; // starting player
+  let currentPlayer = 1;
 
   const nodeInfo = document.getElementById("node-info");
 
@@ -21,15 +21,22 @@ document.addEventListener("DOMContentLoaded", () => {
   // ----------------------------
   function generateNodes() {
     nodes = [];
-    const xSpacing = 3 * nodeRadius; // increased spacing
-    const ySpacing = Math.sqrt(3) * nodeRadius * 1.5; // increased spacing
+    const xSpacing = 4 * nodeRadius; // farther apart
+    const ySpacing = Math.sqrt(3) * nodeRadius * 2; // farther apart
+
+    // Calculate offsets to center the map
+    const mapWidth = (cols - 1) * xSpacing + 2 * nodeRadius;
+    const mapHeight = (rows - 1) * ySpacing + 2 * nodeRadius;
+    const xOffset = (width - mapWidth) / 2 + nodeRadius;
+    const yOffset = (height - mapHeight) / 2 + nodeRadius;
+
     let id = 0;
 
     for (let row = 0; row < rows; row++) {
-      let y = row * ySpacing + nodeRadius;
+      let y = row * ySpacing + yOffset;
       for (let col = 0; col < cols; col++) {
         if (id >= totalNodes) break;
-        let x = col * xSpacing + nodeRadius;
+        let x = col * xSpacing + xOffset;
         if (row % 2 === 1) x += xSpacing / 2; // stagger for hex layout
 
         // assign player based on random diagonal
@@ -59,7 +66,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const dx = nodes[i].x - nodes[j].x;
         const dy = nodes[i].y - nodes[j].y;
         const dist = Math.sqrt(dx*dx + dy*dy);
-        if (dist <= nodeRadius * 3.1) { // immediate neighbors threshold
+        if (dist <= nodeRadius * 2.1) { // immediate neighbors threshold
           edges.push({a: i, b: j});
         }
       }
@@ -75,6 +82,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const edgesToRemove = Math.floor(removableEdges.length / 3);
 
     for (let k = 0; k < edgesToRemove; k++) {
+      if (removableEdges.length === 0) break;
       const idx = Math.floor(Math.random() * removableEdges.length);
       const e = removableEdges[idx];
 
@@ -82,7 +90,6 @@ document.addEventListener("DOMContentLoaded", () => {
       const na = nodes[e.a];
       const nb = nodes[e.b];
 
-      // Count remaining friendly neighbors if this edge is removed
       const aFriendlyNeighbors = edges.filter(edge => (edge.a===e.a||edge.b===e.a) &&
         (nodes[edge.a].owner===na.owner || nodes[edge.b].owner===na.owner) &&
         !(edge.a===e.a && edge.b===e.b) && !(edge.a===e.b && edge.b===e.a)
@@ -94,13 +101,11 @@ document.addEventListener("DOMContentLoaded", () => {
       ).length;
 
       if (aFriendlyNeighbors>0 && bFriendlyNeighbors>0) {
-        // safe to remove
         edges = edges.filter(edge => !(edge.a===e.a && edge.b===e.b) && !(edge.a===e.b && edge.b===e.a));
         removableEdges.splice(idx,1);
       } else {
-        removableEdges.splice(idx,1); // skip this edge
+        removableEdges.splice(idx,1);
       }
-      if (removableEdges.length===0) break;
     }
   }
 
@@ -128,7 +133,6 @@ document.addEventListener("DOMContentLoaded", () => {
       circle.setAttribute("cx", n.x);
       circle.setAttribute("cy", n.y);
       circle.setAttribute("r", nodeRadius);
-      // fill color: yellow if selected, otherwise owner color
       circle.setAttribute("fill", n===selectedNode ? "yellow" : (n.owner===1 ? "#4a90e2" : "#e94e4e"));
       circle.setAttribute("stroke", "#222");
       circle.setAttribute("stroke-width", 2);
@@ -146,7 +150,7 @@ document.addEventListener("DOMContentLoaded", () => {
         texts.forEach((txt, idx) => {
           const t = document.createElementNS("http://www.w3.org/2000/svg","text");
           t.setAttribute("x", n.x);
-          t.setAttribute("y", n.y - 5 + idx*15);
+          t.setAttribute("y", n.y - 7 + idx*20);
           t.setAttribute("class","node-text");
           t.textContent = txt;
           svg.appendChild(t);
