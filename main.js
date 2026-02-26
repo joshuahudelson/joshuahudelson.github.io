@@ -35,40 +35,24 @@ document.addEventListener("DOMContentLoaded", () => {
     let id = 0;
 
     // random diagonal for ownership
-    const diagAngle = Math.random() * Math.PI;
+function assignOwnershipDiagonal() {
+  const angle = Math.random() * Math.PI; // diagonal direction
+  const dx = Math.cos(angle);
+  const dy = Math.sin(angle);
 
-    for (let row = 0; row < rows; row++) {
-      gridIndex[row] = [];
+  // project nodes onto the direction
+  const sorted = [...nodes].sort((a, b) => {
+    const pa = a.x * dx + a.y * dy;
+    const pb = b.x * dx + b.y * dy;
+    return pa - pb;
+  });
 
-      for (let col = 0; col < cols; col++) {
-        if (id >= totalNodes) break;
+  const half = nodes.length / 2;
 
-        let x = col * xSpacing + xOffset;
-        let y = row * ySpacing + yOffset;
-
-        if (row % 2 === 1) x += xSpacing / 2;
-
-        // diagonal ownership split
-        const value = x * Math.cos(diagAngle) + y * Math.sin(diagAngle);
-        const owner = value % 2 > 1 ? 1 : 2;
-
-        nodes.push({
-          id,
-          row,
-          col,
-          x,
-          y,
-          owner,
-          units: Math.floor(Math.random() * 5) + 1,
-          production: Math.floor(Math.random() * 3) + 1
-        });
-
-        gridIndex[row][col] = id;
-
-        id++;
-      }
-    }
-  }
+  sorted.forEach((node, i) => {
+    node.owner = i < half ? 1 : 2;
+  });
+}
 
   // Build hex-grid adjacency directly
   function generateEdges() {
@@ -220,6 +204,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   generateNodes();
+  assignOwnershipDiagonal();
   generateEdges();
   drawMap();
 
