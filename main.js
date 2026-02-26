@@ -146,11 +146,17 @@ function drawCity(node){
 }
 
 function updateCityColor(circle,node){
-  circle.setAttribute("fill", node.owner===1?"#4a90e2":"#e94e4e");
-  if(node.owner===currentPlayer && node.units-node.moved>0){
-    circle.setAttribute("stroke","#222");
-    circle.setAttribute("stroke-width",3);
-  } else circle.setAttribute("stroke","none");
+  if(selectedCity && node.id === selectedCity.id){
+    circle.setAttribute("fill", "yellow"); // active city
+    circle.setAttribute("stroke", "#222");
+    circle.setAttribute("stroke-width", 3);
+  } else {
+    circle.setAttribute("fill", node.owner===1?"#4a90e2":"#e94e4e");
+    if(node.owner===currentPlayer && node.units-node.moved>0){
+      circle.setAttribute("stroke","#222");
+      circle.setAttribute("stroke-width",3);
+    } else circle.setAttribute("stroke","none");
+  }
 }
 
 function updateCityLabel(node){
@@ -162,8 +168,9 @@ function updateCityLabel(node){
 // Inspector
 // ---------------------------
 function selectCity(node){
-  selectedCity=node;
+  selectedCity = node;
   updateInspector();
+  redrawCities();  // ensure colors update
 }
 
 function updateInspector(){
