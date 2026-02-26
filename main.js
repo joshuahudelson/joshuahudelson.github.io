@@ -31,45 +31,11 @@ function generateNodes(){
   for(let i=0;i<TOTAL_NODES;i++){
     nodes.push({
       id:i,
-      x:0, y:0, // positions will be assigned later
+      x:0, y:0,
       owner: i<TOTAL_NODES/2?1:2,
       units: Math.floor(Math.random()*5),
       moved: 0
     });
-  }
-}
-
-// ---------------------------
-// Generate a connected graph
-// ---------------------------
-function generateEdges(){
-  edges = [];
-  // Start with single connected spanning tree
-  let unconnected = nodes.slice();
-  let connected = [unconnected.shift()];
-
-  while(unconnected.length>0){
-    let n1 = connected[Math.floor(Math.random()*connected.length)];
-    // pick closest unconnected node to n1
-    let nearest = unconnected.reduce((a,b)=>distance(n1,b)<distance(n1,a)?b:a);
-    edges.push({a:n1.id,b:nearest.id});
-    connected.push(nearest);
-    unconnected = unconnected.filter(n=>n.id!==nearest.id);
-  }
-
-  // Optional extra edges (intra or inter-player) without crossing
-  let extra = TOTAL_NODES;
-  for(let i=0;i<extra;i++){
-    let n1 = nodes[Math.floor(Math.random()*TOTAL_NODES)];
-    let n2 = nodes[Math.floor(Math.random()*TOTAL_NODES)];
-    if(n1.id===n2.id) continue;
-    if(edges.some(e=>(e.a===n1.id && e.b===n2.id)||(e.a===n2.id && e.b===n1.id))) continue;
-    if(distance(n1,n2)>200) continue;
-
-    const newEdge={a:n1.id,b:n2.id};
-    if(!edges.some(e=>edgesCross(e,newEdge))){
-      edges.push(newEdge);
-    }
   }
 }
 
@@ -83,10 +49,51 @@ function edgesCross(e1,e2){
 }
 
 // ---------------------------
-// Assign positions using simple force-like layout to reduce crossing
+// Generate a single connected graph
+// ---------------------------
+function generateEdges(){
+  edges = [];
+  // Start with a spanning tree connecting all nodes
+  let unconnected = nodes.slice();
+  let connected = [unconnected.shift()];
+
+  while(unconnected.length>0){
+    let n1 = connected[Math.floor(Math.random()*connected.length)];
+    let nearest = unconnected.reduce((a,b)=>distance(n1,b)<distance(n1,a)?b:a);
+    edges.push({a:n1.id,b:nearest.id});
+    connected.push(nearest);
+    unconnected = unconnected.filter(n=>n.id!==nearest.id);
+  }
+
+  // Add intra-player edges to form clusters
+  nodes.forEach(n=>{
+    const samePlayer = nodes.filter(x=>x.owner===n.owner && x.id!==n.id);
+    samePlayer.forEach(target=>{
+      if(edges.some(e=>e.a===n.id && e.b===target.id || e.a===target.id && e.b===n.id)) return;
+      if(distance(n,target)>200) return;
+      const newEdge={a:n.id,b:target.id};
+      if(!edges.some(e=>edgesCross(e,newEdge))) edges.push(newEdge);
+    });
+  });
+
+  // Optional extra edges (inter-player), no crossings
+  let extra = TOTAL_NODES;
+  for(let i=0;i<extra;i++){
+    let n1 = nodes[Math.floor(Math.random()*TOTAL_NODES)];
+    let n2 = nodes[Math.floor(Math.random()*TOTAL_NODES)];
+    if(n1.id===n2.id) continue;
+    if(edges.some(e=>e.a===n1.id && e.b===n2.id || e.a===n2.id && e.b===n1.id)) continue;
+    if(distance(n1,n2)>200) continue;
+    const newEdge={a:n1.id,b:n2.id};
+    if(!edges.some(e=>edgesCross(e,newEdge))) edges.push(newEdge);
+  }
+}
+
+// ---------------------------
+// Assign positions
 // ---------------------------
 function assignPositions(){
-  const margin=50;
+  const margin = 50;
   nodes.forEach(n=>{
     n.x = rand(margin,width-margin);
     n.y = rand(margin,height-margin);
