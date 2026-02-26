@@ -22,22 +22,21 @@ document.addEventListener("DOMContentLoaded", () => {
   function generateNodes() {
     nodes = [];
     const xSpacing = 4 * nodeRadius; // farther apart
-    const ySpacing = Math.sqrt(3) * nodeRadius * 2; // farther apart
+    const ySpacing = Math.sqrt(3) * nodeRadius * 2;
 
-    // Calculate offsets to center the map
+    // Centering offsets
     const mapWidth = (cols - 1) * xSpacing + 2 * nodeRadius;
     const mapHeight = (rows - 1) * ySpacing + 2 * nodeRadius;
     const xOffset = (width - mapWidth) / 2 + nodeRadius;
     const yOffset = (height - mapHeight) / 2 + nodeRadius;
 
     let id = 0;
-
     for (let row = 0; row < rows; row++) {
       let y = row * ySpacing + yOffset;
       for (let col = 0; col < cols; col++) {
         if (id >= totalNodes) break;
         let x = col * xSpacing + xOffset;
-        if (row % 2 === 1) x += xSpacing / 2; // stagger for hex layout
+        if (row % 2 === 1) x += xSpacing / 2; // stagger
 
         // assign player based on random diagonal
         let diag = Math.random();
@@ -55,30 +54,25 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // ----------------------------
-  // Generate edges to nearest neighbors (hex adjacency)
+  // Generate edges to nearest neighbors
   // ----------------------------
   function generateEdges() {
     edges = [];
 
-    // Step 1: connect all immediate neighbors
+    // Connect all immediate neighbors (distance <= 2.5*radius now)
     for (let i = 0; i < nodes.length; i++) {
       for (let j = i + 1; j < nodes.length; j++) {
         const dx = nodes[i].x - nodes[j].x;
         const dy = nodes[i].y - nodes[j].y;
         const dist = Math.sqrt(dx*dx + dy*dy);
-        if (dist <= nodeRadius * 2.1) { // immediate neighbors threshold
+        if (dist <= nodeRadius * 2.5) {
           edges.push({a: i, b: j});
         }
       }
     }
 
-    // Step 2: remove ~1/3 of edges randomly, but keep friendly connections intact
-    let removableEdges = edges.filter(e => {
-      const na = nodes[e.a];
-      const nb = nodes[e.b];
-      return na.owner !== nb.owner; // only consider edges between different owners for removal
-    });
-
+    // Randomly remove ~1/3 of edges without isolating nodes from friendly neighbors
+    let removableEdges = edges.filter(e => nodes[e.a].owner !== nodes[e.b].owner);
     const edgesToRemove = Math.floor(removableEdges.length / 3);
 
     for (let k = 0; k < edgesToRemove; k++) {
@@ -86,22 +80,24 @@ document.addEventListener("DOMContentLoaded", () => {
       const idx = Math.floor(Math.random() * removableEdges.length);
       const e = removableEdges[idx];
 
-      // Check if removal would leave either node disconnected from all friendly neighbors
-      const na = nodes[e.a];
-      const nb = nodes[e.b];
+      // Count remaining friendly neighbors if this edge is removed
+      const aFriendlyNeighbors = edges.filter(edge => {
+        const na = nodes[edge.a];
+        const nb = nodes[edge.b];
+        return (edge !== e && (edge.a===e.a||edge.b===e.a) &&
+                (na.owner===nodes[e.a].owner || nb.owner===nodes[e.a].owner));
+      }).length;
 
-      const aFriendlyNeighbors = edges.filter(edge => (edge.a===e.a||edge.b===e.a) &&
-        (nodes[edge.a].owner===na.owner || nodes[edge.b].owner===na.owner) &&
-        !(edge.a===e.a && edge.b===e.b) && !(edge.a===e.b && edge.b===e.a)
-      ).length;
+      const bFriendlyNeighbors = edges.filter(edge => {
+        const na = nodes[edge.a];
+        const nb = nodes[edge.b];
+        return (edge !== e && (edge.a===e.b||edge.b===e.b) &&
+                (na.owner===nodes[e.b].owner || nb.owner===nodes[e.b].owner));
+      }).length;
 
-      const bFriendlyNeighbors = edges.filter(edge => (edge.a===e.a||edge.b===e.a) &&
-        (nodes[edge.a].owner===nb.owner || nodes[edge.b].owner===nb.owner) &&
-        !(edge.a===e.a && edge.b===e.b) && !(edge.a===e.b && edge.b===e.a)
-      ).length;
-
-      if (aFriendlyNeighbors>0 && bFriendlyNeighbors>0) {
-        edges = edges.filter(edge => !(edge.a===e.a && edge.b===e.b) && !(edge.a===e.b && edge.b===e.a));
+      if (aFriendlyNeighbors > 0 && bFriendlyNeighbors > 0) {
+        // safe to remove
+        edges = edges.filter(edge => edge !== e);
         removableEdges.splice(idx,1);
       } else {
         removableEdges.splice(idx,1);
