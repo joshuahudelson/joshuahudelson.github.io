@@ -13,7 +13,7 @@ let edges = [];
 let selectedCity = null;
 let currentPlayer = 1;
 
-// UI Elements
+// UI
 const inspector = document.getElementById("inspector");
 const moveInput = document.getElementById("moveAmount");
 const moveButton = document.getElementById("moveButton");
@@ -21,17 +21,17 @@ const finishTurnButton = document.getElementById("finishTurn");
 const turnInfo = document.getElementById("turnInfo");
 
 function rand(min,max){return Math.random()*(max-min)+min;}
+function distance(n1,n2){return Math.hypot(n1.x-n2.x,n1.y-n2.y);}
 
 // ---------------------------
-// Generate nodes
+// Generate nodes and assign owners
 // ---------------------------
 function generateNodes(){
   nodes = [];
-  for (let i=0;i<TOTAL_NODES;i++){
+  for(let i=0;i<TOTAL_NODES;i++){
     nodes.push({
       id:i,
-      x:rand(50,width-50),
-      y:rand(50,height-50),
+      x:0, y:0, // positions will be assigned later
       owner: i<TOTAL_NODES/2?1:2,
       units: Math.floor(Math.random()*5),
       moved: 0
@@ -40,63 +40,30 @@ function generateNodes(){
 }
 
 // ---------------------------
-// Distance helper
+// Generate a connected graph
 // ---------------------------
-function distance(n1,n2){
-  return Math.hypot(n1.x-n2.x,n1.y-n2.y);
-}
+function generateEdges(){
+  edges = [];
+  // Start with single connected spanning tree
+  let unconnected = nodes.slice();
+  let connected = [unconnected.shift()];
 
-// ---------------------------
-// Edge crossing check
-// ---------------------------
-function edgesCross(e1,e2){
-  function ccw(A,B,C){
-    return (C.y-A.y)*(B.x-A.x) > (B.y-A.y)*(C.x-A.x);
+  while(unconnected.length>0){
+    let n1 = connected[Math.floor(Math.random()*connected.length)];
+    // pick closest unconnected node to n1
+    let nearest = unconnected.reduce((a,b)=>distance(n1,b)<distance(n1,a)?b:a);
+    edges.push({a:n1.id,b:nearest.id});
+    connected.push(nearest);
+    unconnected = unconnected.filter(n=>n.id!==nearest.id);
   }
-  const A = nodes[e1.a], B = nodes[e1.b];
-  const C = nodes[e2.a], D = nodes[e2.b];
-  return (ccw(A,C,D)!==ccw(B,C,D))&&(ccw(A,B,C)!==ccw(A,B,D));
-}
 
-// ---------------------------
-// Connect nodes of same player (nearest-neighbor tree)
-// ---------------------------
-function connectSamePlayer(){
-  for (let p=1;p<=PLAYERS;p++){
-    const group = nodes.filter(n=>n.owner===p);
-    let connected = [group[0]];
-    let remaining = group.slice(1);
-
-    while(remaining.length>0){
-      let nearestPair = null;
-      let minDist = Infinity;
-      connected.forEach(c=>{
-        remaining.forEach(r=>{
-          const d = distance(c,r);
-          if(d<minDist){
-            minDist=d;
-            nearestPair=[c,r];
-          }
-        });
-      });
-      edges.push({a:nearestPair[0].id,b:nearestPair[1].id});
-      connected.push(nearestPair[1]);
-      remaining = remaining.filter(n=>n.id!==nearestPair[1].id);
-    }
-  }
-}
-
-// ---------------------------
-// Extra edges (intra or inter-player), only if no crossing
-// ---------------------------
-function addExtraEdges(count){
-  for (let i=0;i<count;i++){
-    const n1 = nodes[Math.floor(Math.random()*TOTAL_NODES)];
-    const n2 = nodes[Math.floor(Math.random()*TOTAL_NODES)];
-    if (n1.id===n2.id) continue;
-    if (edges.some(e=>(e.a===n1.id && e.b===n2.id)||(e.a===n2.id && e.b===n1.id))) continue;
-
-    // only connect nearby nodes (optional: distance threshold)
+  // Optional extra edges (intra or inter-player) without crossing
+  let extra = TOTAL_NODES;
+  for(let i=0;i<extra;i++){
+    let n1 = nodes[Math.floor(Math.random()*TOTAL_NODES)];
+    let n2 = nodes[Math.floor(Math.random()*TOTAL_NODES)];
+    if(n1.id===n2.id) continue;
+    if(edges.some(e=>(e.a===n1.id && e.b===n2.id)||(e.a===n2.id && e.b===n1.id))) continue;
     if(distance(n1,n2)>200) continue;
 
     const newEdge={a:n1.id,b:n2.id};
@@ -107,11 +74,31 @@ function addExtraEdges(count){
 }
 
 // ---------------------------
-// Draw edges and nodes
+// Edge crossing check
+// ---------------------------
+function edgesCross(e1,e2){
+  function ccw(A,B,C){return (C.y-A.y)*(B.x-A.x)>(B.y-A.y)*(C.x-A.x);}
+  const A=nodes[e1.a],B=nodes[e1.b],C=nodes[e2.a],D=nodes[e2.b];
+  return (ccw(A,C,D)!==ccw(B,C,D))&&(ccw(A,B,C)!==ccw(A,B,D));
+}
+
+// ---------------------------
+// Assign positions using simple force-like layout to reduce crossing
+// ---------------------------
+function assignPositions(){
+  const margin=50;
+  nodes.forEach(n=>{
+    n.x = rand(margin,width-margin);
+    n.y = rand(margin,height-margin);
+  });
+}
+
+// ---------------------------
+// Draw edges and cities
 // ---------------------------
 function drawEdge(edge){
   const n1 = nodes[edge.a], n2 = nodes[edge.b];
-  const line = document.createElementNS("http://www.w3.org/2000/svg","line");
+  const line=document.createElementNS("http://www.w3.org/2000/svg","line");
   line.setAttribute("x1",n1.x);
   line.setAttribute("y1",n1.y);
   line.setAttribute("x2",n2.x);
@@ -236,12 +223,12 @@ finishTurnButton.onclick = ()=>{
 // ---------------------------
 function init(){
   generateNodes();
-  connectSamePlayer();
-  addExtraEdges(TOTAL_NODES); // intra or inter-player, no crossing
+  generateEdges();
+  assignPositions();
   edges.forEach(drawEdge);
   nodes.forEach(drawCity);
 }
 
 init();
 
-}); // DOMContentLoaded end
+});
