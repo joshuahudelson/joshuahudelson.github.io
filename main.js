@@ -19,7 +19,7 @@ function updateTurnText() {
 updateTurnText();
 
 /* ---------------------------
-Create nodes with starting positions
+Generate nodes (static positions)
 --------------------------- */
 
 const nodes = d3.range(15).map(i => ({
@@ -34,71 +34,91 @@ const nodes = d3.range(15).map(i => ({
 }));
 
 /* ---------------------------
-Build cleaner graph
-(each node connects to nearest few nodes)
+Edge crossing detection
+--------------------------- */
+
+function linesIntersect(a, b, c, d) {
+  function ccw(p1, p2, p3) {
+    return (p3.y - p1.y) * (p2.x - p1.x) > (p2.y - p1.y) * (p3.x - p1.x);
+  }
+  return (
+    ccw(a, c, d) !== ccw(b, c, d) &&
+    ccw(a, b, c) !== ccw(a, b, d)
+  );
+}
+
+/* ---------------------------
+Build planar-ish graph
 --------------------------- */
 
 const links = [];
-const maxConnections = 3;
 
 nodes.forEach(a => {
-  const distances = nodes
+  const candidates = nodes
     .filter(b => b.id !== a.id)
     .map(b => ({
       node: b,
-      d: Math.hypot(a.x - b.x, a.y - b.y)
+      dist: Math.hypot(a.x - b.x, a.y - b.y)
     }))
-    .sort((a, b) => a.d - b.d)
-    .slice(0, maxConnections);
+    .sort((a, b) => a.dist - b.dist)
+    .slice(0, 4);
 
-  distances.forEach(entry => {
+  candidates.forEach(entry => {
     const b = entry.node;
 
-    const exists = links.some(
+    const alreadyExists = links.some(
       l =>
         (l.source === a.id && l.target === b.id) ||
         (l.source === b.id && l.target === a.id)
     );
 
-    if (!exists) {
-      links.push({
-        source: a.id,
-        target: b.id
-      });
+    if (alreadyExists) return;
+
+    const newEdge = {
+      source: a.id,
+      target: b.id
+    };
+
+    const aNode = nodes[a.id];
+    const bNode = nodes[b.id];
+
+    const crosses = links.some(l => {
+      const c = nodes[l.source];
+      const d = nodes[l.target];
+      return linesIntersect(aNode, bNode, c, d);
+    });
+
+    if (!crosses) {
+      links.push(newEdge);
     }
   });
 });
 
 /* ---------------------------
-Simulation
---------------------------- */
-
-const simulation = d3.forceSimulation(nodes)
-  .force("link", d3.forceLink(links).distance(95).strength(0.6))
-  .force("charge", d3.forceManyBody().strength(-260))
-  .force("center", d3.forceCenter(width / 2, height / 2))
-  .force("collision", d3.forceCollide().radius(28));
-
-/* ---------------------------
-Edges
+Draw edges
 --------------------------- */
 
 const link = svg.selectAll("line")
   .data(links)
   .enter()
   .append("line")
+  .attr("x1", d => nodes[d.source].x)
+  .attr("y1", d => nodes[d.source].y)
+  .attr("x2", d => nodes[d.target].x)
+  .attr("y2", d => nodes[d.target].y)
   .attr("stroke", "#555")
-  .attr("stroke-width", 2)
-  .attr("opacity", 0.85);
+  .attr("stroke-width", 2);
 
 /* ---------------------------
-Nodes
+Draw nodes
 --------------------------- */
 
 const node = svg.selectAll("circle")
   .data(nodes)
   .enter()
   .append("circle")
+  .attr("cx", d => d.x)
+  .attr("cy", d => d.y)
   .attr("r", 18)
   .on("click", onCityClick);
 
@@ -106,6 +126,8 @@ const labels = svg.selectAll("text")
   .data(nodes)
   .enter()
   .append("text")
+  .attr("x", d => d.x)
+  .attr("y", d => d.y)
   .attr("text-anchor", "middle")
   .attr("dy", ".35em")
   .style("pointer-events", "none");
@@ -120,8 +142,8 @@ function movableUnits(city) {
 
 function neighbors(city) {
   return links
-    .filter(l => l.source.id === city.id || l.target.id === city.id)
-    .map(l => (l.source.id === city.id ? l.target : l.source));
+    .filter(l => l.source === city.id || l.target === city.id)
+    .map(l => (l.source === city.id ? nodes[l.target] : nodes[l.source]));
 }
 
 function cityColor(city) {
@@ -248,30 +270,3 @@ endTurnBtn.onclick = () => {
 
   inspector.innerHTML = "Turn ended.";
 };
-
-/* ---------------------------
-Simulation tick
---------------------------- */
-
-simulation.on("tick", () => {
-
-  // keep nodes inside the map
-  nodes.forEach(n => {
-    n.x = Math.max(margin, Math.min(width - margin, n.x));
-    n.y = Math.max(margin, Math.min(height - margin, n.y));
-  });
-
-  link
-    .attr("x1", d => d.source.x)
-    .attr("y1", d => d.source.y)
-    .attr("x2", d => d.target.x)
-    .attr("y2", d => d.target.y);
-
-  node
-    .attr("cx", d => d.x)
-    .attr("cy", d => d.y);
-
-  labels
-    .attr("x", d => d.x)
-    .attr("y", d => d.y);
-});
