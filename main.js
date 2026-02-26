@@ -1,3 +1,6 @@
+// Wrap everything in DOMContentLoaded to ensure SVG exists
+document.addEventListener("DOMContentLoaded", () => {
+
 const svg = document.getElementById("map");
 const width = svg.clientWidth;
 const height = svg.clientHeight;
@@ -12,7 +15,7 @@ let edges = [];
 let selectedCity = null;
 let currentPlayer = 1;
 
-// UI
+// UI Elements
 const inspector = document.getElementById("inspector");
 const moveInput = document.getElementById("moveAmount");
 const moveButton = document.getElementById("moveButton");
@@ -23,12 +26,14 @@ function rand(min, max) {
   return Math.random() * (max - min) + min;
 }
 
+// ---------------------------
+// Generate clusters
+// ---------------------------
 function generateClusters() {
   const margin = 80;
 
   for (let p = 0; p < PLAYERS; p++) {
-    const clusterCenterX =
-      p === 0 ? width * 0.3 : width * 0.7;
+    const clusterCenterX = p === 0 ? width * 0.3 : width * 0.7;
     const clusterCenterY = height / 2;
 
     let clusterNodes = [];
@@ -39,15 +44,14 @@ function generateClusters() {
         x: clusterCenterX + rand(-120, 120),
         y: clusterCenterY + rand(-120, 120),
         owner: p + 1,
-        units: Math.floor(Math.random() * 3),
+        units: Math.floor(Math.random() * 5),
         moved: 0
       };
-
       nodes.push(node);
       clusterNodes.push(node);
     }
 
-    // Connect cluster as a tree (no crossings)
+    // Intra-cluster tree connections
     for (let i = 1; i < clusterNodes.length; i++) {
       edges.push({
         a: clusterNodes[i - 1].id,
@@ -55,14 +59,41 @@ function generateClusters() {
       });
     }
   }
+}
 
-  // One bridge between clusters
-  edges.push({
-    a: 0,
-    b: NODES_PER_CLUSTER
+// ---------------------------
+// Generate inter-cluster edges
+// ---------------------------
+function generateInterClusterEdges() {
+  const interProbability = 0.3; // chance to connect across clusters
+  const maxInterEdges = 6;
+  let interEdgesCount = 0;
+
+  const cluster1 = nodes.filter(n => n.owner === 1);
+  const cluster2 = nodes.filter(n => n.owner === 2);
+
+  cluster1.forEach(n1 => {
+    if (interEdgesCount >= maxInterEdges) return;
+
+    cluster2.forEach(n2 => {
+      if (interEdgesCount >= maxInterEdges) return;
+
+      if (Math.random() < interProbability) {
+        const exists = edges.some(
+          e => (e.a === n1.id && e.b === n2.id) || (e.a === n2.id && e.b === n1.id)
+        );
+        if (!exists) {
+          edges.push({ a: n1.id, b: n2.id });
+          interEdgesCount++;
+        }
+      }
+    });
   });
 }
 
+// ---------------------------
+// Draw edges and cities
+// ---------------------------
 function drawEdge(edge) {
   const n1 = nodes[edge.a];
   const n2 = nodes[edge.b];
@@ -92,7 +123,6 @@ function drawCity(node) {
   circle.onclick = () => selectCity(node);
 
   svg.appendChild(circle);
-
   node.element = circle;
 
   const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
@@ -100,19 +130,20 @@ function drawCity(node) {
   label.setAttribute("y", node.y + 4);
   label.setAttribute("text-anchor", "middle");
   label.setAttribute("font-size", "12");
-
   svg.appendChild(label);
-
   node.label = label;
 
   updateCityLabel(node);
 }
 
+// ---------------------------
+// City color and label
+// ---------------------------
 function updateCityColor(circle, node) {
   if (node.owner === 1) circle.setAttribute("fill", "#4a90e2");
   else circle.setAttribute("fill", "#e94e4e");
 
-  if (node.owner === currentPlayer && node.units > node.moved) {
+  if (node.owner === currentPlayer && node.units - node.moved > 0) {
     circle.setAttribute("stroke", "#222");
     circle.setAttribute("stroke-width", 3);
   } else {
@@ -122,20 +153,38 @@ function updateCityColor(circle, node) {
 
 function updateCityLabel(node) {
   if (node.owner === currentPlayer) {
-    node.label.textContent = node.units;
+    node.label.textContent = node.units - node.moved;
   } else {
     node.label.textContent = "";
   }
 }
 
+// ---------------------------
+// Selection & inspector
+// ---------------------------
 function selectCity(node) {
   selectedCity = node;
+  updateInspector();
+}
 
+function updateInspector() {
+  if (!selectedCity) return;
+
+  const remaining = selectedCity.units - selectedCity.moved;
   inspector.innerHTML =
-    "City " + node.id +
-    "<br>Owner: Player " + node.owner +
-    "<br>Units: " + node.units +
-    "<br>Units with moves left: " + (node.units - node.moved);
+    "City " + selectedCity.id +
+    "<br>Owner: Player " + selectedCity.owner +
+    "<br>Units: " + selectedCity.units +
+    "<br>Units left to move: " + remaining;
+}
+
+// ---------------------------
+// Helpers
+// ---------------------------
+function neighbors(nodeId) {
+  return edges
+    .filter(e => e.a === nodeId || e.b === nodeId)
+    .map(e => (e.a === nodeId ? e.b : e.a));
 }
 
 function redrawCities() {
@@ -145,12 +194,9 @@ function redrawCities() {
   });
 }
 
-function neighbors(nodeId) {
-  return edges
-    .filter(e => e.a === nodeId || e.b === nodeId)
-    .map(e => (e.a === nodeId ? e.b : e.a));
-}
-
+// ---------------------------
+// Move units
+// ---------------------------
 moveButton.onclick = () => {
   if (!selectedCity) return;
   if (selectedCity.owner !== currentPlayer) return;
@@ -158,7 +204,8 @@ moveButton.onclick = () => {
   const amount = parseInt(moveInput.value);
   if (isNaN(amount)) return;
 
-  if (selectedCity.moved + amount > selectedCity.units) return;
+  const remaining = selectedCity.units - selectedCity.moved;
+  if (amount > remaining) return;
 
   const neigh = neighbors(selectedCity.id);
   if (neigh.length === 0) return;
@@ -176,26 +223,33 @@ moveButton.onclick = () => {
   }
 
   redrawCities();
-  selectCity(selectedCity);
+  updateInspector();
 };
 
+// ---------------------------
+// Finish turn
+// ---------------------------
 finishTurnButton.onclick = () => {
   currentPlayer++;
   if (currentPlayer > PLAYERS) currentPlayer = 1;
 
-  nodes.forEach(n => {
-    n.moved = 0;
-  });
+  nodes.forEach(n => n.moved = 0);
 
   turnInfo.textContent = "Current Player: " + currentPlayer;
   redrawCities();
 };
 
+// ---------------------------
+// Initialize
+// ---------------------------
 function init() {
   generateClusters();
+  generateInterClusterEdges();
 
   edges.forEach(drawEdge);
   nodes.forEach(drawCity);
 }
 
 init();
+
+}); // end DOMContentLoaded
