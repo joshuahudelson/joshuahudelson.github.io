@@ -1,3 +1,5 @@
+window.addEventListener("DOMContentLoaded", () => {
+
 const canvas = document.getElementById("mapCanvas");
 const ctx = canvas.getContext("2d");
 
@@ -6,7 +8,7 @@ canvas.height = window.innerHeight;
 
 const NODE_COUNT = 14;
 const NODE_RADIUS = 30; // diameter = 60
-const MIN_DISTANCE = 140;
+const MIN_DISTANCE = 160;
 
 let nodes = [];
 let edges = [];
@@ -92,18 +94,11 @@ function connectNeighbors() {
 }
 
 function removeRandomEdges() {
-  let removable = edges.slice();
-
   let removeCount = Math.floor(edges.length / 3);
 
   for (let i = 0; i < removeCount; i++) {
-    if (removable.length === 0) break;
-
-    let index = Math.floor(Math.random() * removable.length);
-    let edge = removable[index];
-
-    edges = edges.filter(e => e !== edge);
-    removable.splice(index, 1);
+    let index = Math.floor(Math.random() * edges.length);
+    edges.splice(index, 1);
   }
 }
 
@@ -134,7 +129,6 @@ function ensureConnectedGraph() {
 
 function assignOwnership() {
   let sorted = [...nodes].sort((a, b) => (a.x + a.y) - (b.x + b.y));
-
   let half = Math.floor(nodes.length / 2);
 
   for (let i = 0; i < sorted.length; i++) {
@@ -152,6 +146,10 @@ function createStartingUnits() {
 
 function getUnitsAtNode(nodeId) {
   return units.filter(u => u.nodeId === nodeId);
+}
+
+function getCombatUnitsAtNode(nodeId) {
+  return units.filter(u => u.nodeId === nodeId && u.type === "combat");
 }
 
 function getDefendingUnit(nodeId, attackerOwner) {
@@ -233,13 +231,16 @@ function draw() {
     ctx.fill();
     ctx.stroke();
 
-    let unitCount = getUnitsAtNode(n.id).length;
+    // show ONLY combat units
+    let combatCount = getCombatUnitsAtNode(n.id).length;
 
-    ctx.fillStyle = "black";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.font = "16px sans-serif";
-    ctx.fillText(unitCount, n.x, n.y);
+    if (combatCount > 0) {
+      ctx.fillStyle = "black";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.font = "16px sans-serif";
+      ctx.fillText(combatCount, n.x, n.y);
+    }
   }
 }
 
@@ -268,3 +269,5 @@ function generateMap() {
 }
 
 generateMap();
+
+});
