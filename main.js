@@ -1,10 +1,18 @@
+document.addEventListener("DOMContentLoaded", () => {
+  generateNodes();
+  generateEdges();
+  drawMap();
+});
+
 const svg = document.getElementById("map");
 const width = svg.getAttribute("width");
 const height = svg.getAttribute("height");
 
 const nodeRadius = 20; // 40px diameter
-const rows = 4; // adjust for 14 nodes (3–4 nodes per row)
-const cols = 4;
+
+const totalNodes = 14;
+const rows = 4;
+const cols = Math.ceil(totalNodes / rows);
 
 let nodes = [];
 let edges = [];
@@ -16,25 +24,27 @@ function generateNodes() {
   const xSpacing = 2 * nodeRadius * 1.1;
   const ySpacing = Math.sqrt(3) * nodeRadius * 1.1;
 
-  let id = 0;
-  for (let row = 0; row < rows; row++) {
-    let y = row * ySpacing + nodeRadius;
-    for (let col = 0; col < cols; col++) {
-      if (id >= 14) break; // only create 14 nodes
-      let x = col * xSpacing + nodeRadius;
-      if (row % 2 === 1) x += xSpacing / 2; // stagger for hex layout
+let id = 0;
+for (let row = 0; row < rows; row++) {
+  let y = row * ySpacing + nodeRadius;
+  for (let col = 0; col < cols; col++) {
+    if (id >= totalNodes) break;
+    let x = col * xSpacing + nodeRadius;
+    if (row % 2 === 1) x += xSpacing / 2; // stagger
+    // assign player based on random diagonal
+    let diag = Math.random();
+    let owner = (row + col < diag * (rows + cols)) ? 1 : 2;
 
-      // assign player based on random diagonal
-      let diag = Math.random(); // simple random
-      let owner = (row + col < diag * (rows + cols)) ? 1 : 2;
-
-      nodes.push({
-        id: id++,
-        x, y,
-        owner,
-        units: Math.floor(Math.random() * 5) + 1,
-        spies: Math.floor(Math.random() * 3),
-        production: Math.floor(Math.random() * 3) + 1,
+    nodes.push({
+      id: id++,
+      x, y,
+      owner,
+      units: Math.floor(Math.random() * 5) + 1,
+      spies: Math.floor(Math.random() * 3),
+      production: Math.floor(Math.random() * 3) + 1
+    });
+  }
+}
       });
     }
   }
