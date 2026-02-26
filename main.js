@@ -1,5 +1,6 @@
 const width = 700;
 const height = 500;
+const margin = 40;
 
 const svg = d3.select("#map")
   .attr("width", width)
@@ -15,15 +16,16 @@ const endTurnBtn = document.getElementById("endTurn");
 function updateTurnText() {
   turnIndicator.textContent = "Player " + (currentPlayer + 1) + "'s turn";
 }
-
 updateTurnText();
 
 /* ---------------------------
-Create graph
+Create nodes with starting positions
 --------------------------- */
 
 const nodes = d3.range(15).map(i => ({
   id: i,
+  x: margin + Math.random() * (width - margin * 2),
+  y: margin + Math.random() * (height - margin * 2),
   owner: i < 7 ? 0 : i < 14 ? 1 : -1,
   units: Array.from(
     { length: i < 14 ? 3 : 0 },
@@ -31,12 +33,38 @@ const nodes = d3.range(15).map(i => ({
   )
 }));
 
+/* ---------------------------
+Build cleaner graph
+(each node connects to nearest few nodes)
+--------------------------- */
+
 const links = [];
+const maxConnections = 3;
 
 nodes.forEach(a => {
-  nodes.forEach(b => {
-    if (a.id < b.id && Math.random() < 0.18) {
-      links.push({ source: a.id, target: b.id });
+  const distances = nodes
+    .filter(b => b.id !== a.id)
+    .map(b => ({
+      node: b,
+      d: Math.hypot(a.x - b.x, a.y - b.y)
+    }))
+    .sort((a, b) => a.d - b.d)
+    .slice(0, maxConnections);
+
+  distances.forEach(entry => {
+    const b = entry.node;
+
+    const exists = links.some(
+      l =>
+        (l.source === a.id && l.target === b.id) ||
+        (l.source === b.id && l.target === a.id)
+    );
+
+    if (!exists) {
+      links.push({
+        source: a.id,
+        target: b.id
+      });
     }
   });
 });
@@ -46,12 +74,13 @@ Simulation
 --------------------------- */
 
 const simulation = d3.forceSimulation(nodes)
-  .force("link", d3.forceLink(links).distance(90).strength(0.5))
-  .force("charge", d3.forceManyBody().strength(-220))
-  .force("center", d3.forceCenter(width / 2, height / 2));
+  .force("link", d3.forceLink(links).distance(95).strength(0.6))
+  .force("charge", d3.forceManyBody().strength(-260))
+  .force("center", d3.forceCenter(width / 2, height / 2))
+  .force("collision", d3.forceCollide().radius(28));
 
 /* ---------------------------
-Draw edges (FIXED)
+Edges
 --------------------------- */
 
 const link = svg.selectAll("line")
@@ -60,10 +89,10 @@ const link = svg.selectAll("line")
   .append("line")
   .attr("stroke", "#555")
   .attr("stroke-width", 2)
-  .attr("opacity", 0.8);
+  .attr("opacity", 0.85);
 
 /* ---------------------------
-Draw nodes
+Nodes
 --------------------------- */
 
 const node = svg.selectAll("circle")
@@ -225,6 +254,13 @@ Simulation tick
 --------------------------- */
 
 simulation.on("tick", () => {
+
+  // keep nodes inside the map
+  nodes.forEach(n => {
+    n.x = Math.max(margin, Math.min(width - margin, n.x));
+    n.y = Math.max(margin, Math.min(height - margin, n.y));
+  });
+
   link
     .attr("x1", d => d.source.x)
     .attr("y1", d => d.source.y)
