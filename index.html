@@ -1,53 +1,82 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Graph Strategy Game</title>
-
-<script src="https://d3js.org/d3.v7.min.js"></script>
+<title>Strategy Graph Game</title>
 
 <style>
 body {
-  font-family: sans-serif;
+  margin: 0;
+  font-family: Arial, sans-serif;
 }
 
 #container {
   display: flex;
-  gap: 20px;
+  height: 100vh;
 }
 
 #map {
+  background: white;
   border: 1px solid black;
+  flex-grow: 1;
+}
+
+#sidebar {
+  width: 260px;
+  border-left: 1px solid black;
+  padding: 10px;
+  box-sizing: border-box;
+  background: #f5f5f5;
 }
 
 #inspector {
-  width: 220px;
-  border: 1px solid black;
-  padding: 10px;
+  margin-bottom: 12px;
 }
 
 button {
   margin-top: 6px;
+  width: 100%;
+}
+
+input {
+  width: 100%;
+  margin-top: 4px;
 }
 </style>
+
+<!-- Load the game script AFTER the DOM is parsed -->
+<script src="game.js" defer></script>
+
 </head>
 
 <body>
 
-<h2>Graph Strategy Game</h2>
-
-<button id="endTurn">Finish Turn</button>
-<p id="turnIndicator"></p>
-
 <div id="container">
-  <svg id="map" width="700" height="500"></svg>
+
+<svg id="map" width="900" height="600"></svg>
+
+<div id="sidebar">
+  <h3>City Inspector</h3>
 
   <div id="inspector">
-    <h3>City Inspector</h3>
-    <div id="inspectorContent">Click a city</div>
+    Select a city
+  </div>
+
+  <label>Units to move:</label>
+  <input id="moveAmount" type="number" value="1" min="1">
+
+  <button id="moveButton">Move Units</button>
+
+  <button id="finishTurn">Finish Turn</button>
+
+  <hr>
+
+  <div id="turnInfo">
+    Current Player: 1
   </div>
 </div>
 
-<script src="https://d3js.org/d3.v7.min.js"></script>
-<script src="game.js" defer></script></body>
+</div>
+
+</body>
 </html>
