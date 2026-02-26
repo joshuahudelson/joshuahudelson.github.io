@@ -1,46 +1,63 @@
-document.addEventListener("DOMContentLoaded", () => {
+const width = 900;
+const height = 700;
 
-  const svg = document.getElementById("map");
-  const width = Number(svg.getAttribute("width"));
-  const height = Number(svg.getAttribute("height"));
+const nodeCount = 14;
+const cols = 4; // hex layout columns
+const rows = Math.ceil(nodeCount / cols);
 
-  const nodeRadius = 30; // 60px diameter
-  const totalNodes = 14;
-  const rows = 4;
-  const cols = Math.ceil(totalNodes / rows);
+const spacingX = 160;
+const spacingY = 140;
+const nodeRadius = 30;
 
-  let nodes = [];
-  let edges = [];
-  let selectedNode = null;
-  let currentPlayer = 1;
+let nodes = [];
+let edges = [];
+let activeNode = null;
 
-  const nodeInfo = document.getElementById("node-info");
+const svg = document.getElementById("map");
+svg.setAttribute("width", width);
+svg.setAttribute("height", height);
 
-  // spacing (larger than before)
-  const xSpacing = 5 * nodeRadius;
-  const ySpacing = Math.sqrt(3) * nodeRadius * 2.2;
+const edgeLayer = document.createElementNS("http://www.w3.org/2000/svg", "g");
+const nodeLayer = document.createElementNS("http://www.w3.org/2000/svg", "g");
+svg.appendChild(edgeLayer);
+svg.appendChild(nodeLayer);
 
-  // center the map
-  const mapWidth = (cols - 1) * xSpacing + xSpacing;
-  const mapHeight = (rows - 1) * ySpacing + ySpacing;
-  const xOffset = (width - mapWidth) / 2 + nodeRadius;
-  const yOffset = (height - mapHeight) / 2 + nodeRadius;
+function generateNodes() {
+  nodes = [];
 
-  let gridIndex = []; // track node positions in grid
+  let startX = width / 2 - ((cols - 1) * spacingX) / 2;
+  let startY = height / 2 - ((rows - 1) * spacingY) / 2;
 
-  function generateNodes() {
-    nodes = [];
-    gridIndex = [];
+  let id = 0;
 
-    let id = 0;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (id >= nodeCount) break;
 
-    // random diagonal for ownership
+      const offset = r % 2 === 0 ? 0 : spacingX / 2;
+
+      const x = startX + c * spacingX + offset;
+      const y = startY + r * spacingY;
+
+      nodes.push({
+        id,
+        x,
+        y,
+        owner: null,
+        units: Math.floor(Math.random() * 4) + 1,
+        production: Math.floor(Math.random() * 3) + 1
+      });
+
+      id++;
+    }
+  }
+}
+
 function assignOwnershipDiagonal() {
-  const angle = Math.random() * Math.PI; // diagonal direction
+  const angle = Math.random() * Math.PI;
   const dx = Math.cos(angle);
   const dy = Math.sin(angle);
 
-  // project nodes onto the direction
   const sorted = [...nodes].sort((a, b) => {
     const pa = a.x * dx + a.y * dy;
     const pb = b.x * dx + b.y * dy;
@@ -54,158 +71,134 @@ function assignOwnershipDiagonal() {
   });
 }
 
-  // Build hex-grid adjacency directly
-  function generateEdges() {
-    edges = [];
+function distance(a, b) {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
 
-    const directionsEven = [
-      [0, -1], [0, 1],
-      [-1, 0], [-1, -1],
-      [1, 0], [1, -1]
-    ];
+function generateEdges() {
+  edges = [];
 
-    const directionsOdd = [
-      [0, -1], [0, 1],
-      [-1, 1], [-1, 0],
-      [1, 1], [1, 0]
-    ];
+  const maxNeighborDist = spacingX * 1.1;
 
-    nodes.forEach(node => {
-      const dirs = node.row % 2 === 0 ? directionsEven : directionsOdd;
-
-      dirs.forEach(d => {
-        const r = node.row + d[0];
-        const c = node.col + d[1];
-
-        if (
-          r >= 0 &&
-          r < gridIndex.length &&
-          c >= 0 &&
-          c < (gridIndex[r] || []).length
-        ) {
-          const neighborId = gridIndex[r][c];
-          if (neighborId !== undefined) {
-            const a = node.id;
-            const b = neighborId;
-
-            if (!edges.some(e => (e.a === a && e.b === b) || (e.a === b && e.b === a))) {
-              edges.push({ a, b });
-            }
-          }
-        }
-      });
-    });
-
-    pruneEdges();
-  }
-
-  // Remove ~1/3 edges safely
-  function pruneEdges() {
-    const targetRemove = Math.floor(edges.length / 3);
-
-    let attempts = 0;
-    let removed = 0;
-
-    while (removed < targetRemove && attempts < 200) {
-      attempts++;
-
-      const idx = Math.floor(Math.random() * edges.length);
-      const edge = edges[idx];
-
-      const a = nodes[edge.a];
-      const b = nodes[edge.b];
-
-      // simulate removal
-      const remaining = edges.filter((_, i) => i !== idx);
-
-      const aFriendly = remaining.some(e =>
-        (e.a === a.id || e.b === a.id) &&
-        nodes[e.a].owner === a.owner &&
-        nodes[e.b].owner === a.owner
-      );
-
-      const bFriendly = remaining.some(e =>
-        (e.a === b.id || e.b === b.id) &&
-        nodes[e.a].owner === b.owner &&
-        nodes[e.b].owner === b.owner
-      );
-
-      if (aFriendly && bFriendly) {
-        edges.splice(idx, 1);
-        removed++;
-      }
-    }
-  }
-
-  function drawMap() {
-    svg.innerHTML = "";
-
-    edges.forEach(e => {
-      const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-      line.setAttribute("x1", nodes[e.a].x);
-      line.setAttribute("y1", nodes[e.a].y);
-      line.setAttribute("x2", nodes[e.b].x);
-      line.setAttribute("y2", nodes[e.b].y);
-      line.setAttribute("stroke", "#000");
-      line.setAttribute("stroke-width", 2);
-      svg.appendChild(line);
-    });
-
-    nodes.forEach(n => {
-      const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-      circle.setAttribute("cx", n.x);
-      circle.setAttribute("cy", n.y);
-      circle.setAttribute("r", nodeRadius);
-      circle.setAttribute(
-        "fill",
-        n === selectedNode
-          ? "yellow"
-          : (n.owner === 1 ? "#4a90e2" : "#e94e4e")
-      );
-
-      circle.setAttribute("stroke", "#222");
-      circle.setAttribute("stroke-width", 2);
-
-      circle.onclick = () => {
-        selectedNode = n;
-        drawMap();
-        updateInspector();
-      };
-
-      svg.appendChild(circle);
-
-      if (n.owner === currentPlayer) {
-        const values = [n.units, n.production];
-
-        values.forEach((v, i) => {
-          const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
-          t.setAttribute("x", n.x);
-          t.setAttribute("y", n.y - 10 + i * 22);
-          t.setAttribute("class", "node-text");
-          t.textContent = v;
-          svg.appendChild(t);
+  for (let i = 0; i < nodes.length; i++) {
+    for (let j = i + 1; j < nodes.length; j++) {
+      if (distance(nodes[i], nodes[j]) < maxNeighborDist) {
+        edges.push({
+          a: nodes[i].id,
+          b: nodes[j].id
         });
       }
-    });
-  }
-
-  function updateInspector() {
-    if (!selectedNode) {
-      nodeInfo.textContent = "Click a node.";
-      return;
     }
-
-    nodeInfo.innerHTML = `
-      Node ${selectedNode.id}<br>
-      Owner: ${selectedNode.owner}<br>
-      Units: ${selectedNode.units}<br>
-      Production: ${selectedNode.production}
-    `;
   }
 
+  randomlyRemoveEdges();
+}
+
+function friendlyConnectionExists(nodeId, testEdges) {
+  const node = nodes[nodeId];
+
+  return testEdges.some(e => {
+    const other =
+      e.a === nodeId ? nodes[e.b] :
+      e.b === nodeId ? nodes[e.a] :
+      null;
+
+    return other && other.owner === node.owner;
+  });
+}
+
+function randomlyRemoveEdges() {
+  const shuffled = [...edges].sort(() => Math.random() - 0.5);
+  const removeTarget = Math.floor(edges.length / 3);
+
+  let removed = 0;
+
+  for (let edge of shuffled) {
+    if (removed >= removeTarget) break;
+
+    const testEdges = edges.filter(e => e !== edge);
+
+    if (
+      friendlyConnectionExists(edge.a, testEdges) &&
+      friendlyConnectionExists(edge.b, testEdges)
+    ) {
+      edges = testEdges;
+      removed++;
+    }
+  }
+}
+
+function drawEdges() {
+  edgeLayer.innerHTML = "";
+
+  edges.forEach(edge => {
+    const a = nodes[edge.a];
+    const b = nodes[edge.b];
+
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    line.setAttribute("x1", a.x);
+    line.setAttribute("y1", a.y);
+    line.setAttribute("x2", b.x);
+    line.setAttribute("y2", b.y);
+    line.setAttribute("stroke", "#666");
+    line.setAttribute("stroke-width", "3");
+
+    edgeLayer.appendChild(line);
+  });
+}
+
+function nodeColor(node) {
+  if (activeNode === node.id) return "yellow";
+  return node.owner === 1 ? "#d94a4a" : "#4a6fd9";
+}
+
+function drawNodes() {
+  nodeLayer.innerHTML = "";
+
+  nodes.forEach(node => {
+    const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
+
+    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    circle.setAttribute("cx", node.x);
+    circle.setAttribute("cy", node.y);
+    circle.setAttribute("r", nodeRadius);
+    circle.setAttribute("fill", nodeColor(node));
+    circle.setAttribute("stroke", "#222");
+    circle.setAttribute("stroke-width", "2");
+
+    circle.onclick = () => {
+      activeNode = node.id;
+      drawNodes();
+    };
+
+    const text1 = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    text1.setAttribute("x", node.x);
+    text1.setAttribute("y", node.y - 6);
+    text1.setAttribute("text-anchor", "middle");
+    text1.setAttribute("font-size", "16");
+    text1.textContent = node.units;
+
+    const text2 = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    text2.setAttribute("x", node.x);
+    text2.setAttribute("y", node.y + 14);
+    text2.setAttribute("text-anchor", "middle");
+    text2.setAttribute("font-size", "14");
+    text2.textContent = node.production;
+
+    group.appendChild(circle);
+    group.appendChild(text1);
+    group.appendChild(text2);
+
+    nodeLayer.appendChild(group);
+  });
+}
+
+function init() {
   generateNodes();
   assignOwnershipDiagonal();
   generateEdges();
-  drawMap();
+  drawEdges();
+  drawNodes();
+}
 
-});
+init();
