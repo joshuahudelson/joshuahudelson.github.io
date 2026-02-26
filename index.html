@@ -2,15 +2,24 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Strategy Map Prototype</title>
+<title>Strategy Game</title>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
 <div id="gameContainer">
-  <canvas id="mapCanvas"></canvas>
+  <canvas id="gameCanvas"></canvas>
+
+  <div id="sidePanel">
+    <h2>City Inspector</h2>
+    <div id="cityInfo">
+      Click a city
+    </div>
+
+    <button id="moveButton">Move</button>
+  </div>
 </div>
 
-<script src="main.js"></script>
+<script src="game.js"></script>
 </body>
 </html>
