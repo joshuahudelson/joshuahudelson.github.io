@@ -1,45 +1,52 @@
-const width = 700;
-const height = 500;
-const margin = 40;
+const width = 900;
+const height = 600;
+const numPlayers = 2;
+const citiesPerPlayer = 10;
+const maxConnections = 3;
 
 const svg = d3.select("#map")
   .attr("width", width)
   .attr("height", height);
 
-let currentPlayer = 0;
-const numPlayers = 2;
+let cities = [];
+let edges = [];
 
-const turnIndicator = document.getElementById("turnIndicator");
-const inspector = document.getElementById("inspectorContent");
-const endTurnBtn = document.getElementById("endTurn");
+/* -----------------------
+   Create clustered cities
+----------------------- */
+function generateCities() {
+  cities = [];
+  const regionWidth = width / numPlayers;
 
-function updateTurnText() {
-  turnIndicator.textContent = "Player " + (currentPlayer + 1) + "'s turn";
+  let id = 0;
+  for (let p = 0; p < numPlayers; p++) {
+    const startX = p * regionWidth;
+    const endX = startX + regionWidth;
+
+    for (let i = 0; i < citiesPerPlayer; i++) {
+      cities.push({
+        id: id++,
+        player: p,
+        x: startX + 60 + Math.random() * (regionWidth - 120),
+        y: 60 + Math.random() * (height - 120),
+        units: 5,
+        movedUnits: 0
+      });
+    }
+  }
 }
-updateTurnText();
 
-/* ---------------------------
-Generate nodes (static positions)
---------------------------- */
-
-const nodes = d3.range(15).map(i => ({
-  id: i,
-  x: margin + Math.random() * (width - margin * 2),
-  y: margin + Math.random() * (height - margin * 2),
-  owner: i < 7 ? 0 : i < 14 ? 1 : -1,
-  units: Array.from(
-    { length: i < 14 ? 3 : 0 },
-    () => ({ moved: false })
-  )
-}));
-
-/* ---------------------------
-Edge crossing detection
---------------------------- */
+/* -----------------------
+   Geometry helpers
+----------------------- */
+function distance(a, b) {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
 
 function linesIntersect(a, b, c, d) {
   function ccw(p1, p2, p3) {
-    return (p3.y - p1.y) * (p2.x - p1.x) > (p2.y - p1.y) * (p3.x - p1.x);
+    return (p3.y - p1.y) * (p2.x - p1.x) >
+           (p2.y - p1.y) * (p3.x - p1.x);
   }
   return (
     ccw(a, c, d) !== ccw(b, c, d) &&
@@ -47,226 +54,166 @@ function linesIntersect(a, b, c, d) {
   );
 }
 
-/* ---------------------------
-Build planar-ish graph
---------------------------- */
+function edgeWouldCross(a, b) {
+  for (const e of edges) {
+    const c = cities[e.source];
+    const d = cities[e.target];
 
-const links = [];
+    if (a === c || a === d || b === c || b === d) continue;
 
-nodes.forEach(a => {
-  const candidates = nodes
-    .filter(b => b.id !== a.id)
-    .map(b => ({
-      node: b,
-      dist: Math.hypot(a.x - b.x, a.y - b.y)
-    }))
-    .sort((a, b) => a.dist - b.dist)
-    .slice(0, 4);
-
-  candidates.forEach(entry => {
-    const b = entry.node;
-
-    const alreadyExists = links.some(
-      l =>
-        (l.source === a.id && l.target === b.id) ||
-        (l.source === b.id && l.target === a.id)
-    );
-
-    if (alreadyExists) return;
-
-    const newEdge = {
-      source: a.id,
-      target: b.id
-    };
-
-    const aNode = nodes[a.id];
-    const bNode = nodes[b.id];
-
-    const crosses = links.some(l => {
-      const c = nodes[l.source];
-      const d = nodes[l.target];
-      return linesIntersect(aNode, bNode, c, d);
-    });
-
-    if (!crosses) {
-      links.push(newEdge);
-    }
-  });
-});
-
-/* ---------------------------
-Draw edges
---------------------------- */
-
-const link = svg.selectAll("line")
-  .data(links)
-  .enter()
-  .append("line")
-  .attr("x1", d => nodes[d.source].x)
-  .attr("y1", d => nodes[d.source].y)
-  .attr("x2", d => nodes[d.target].x)
-  .attr("y2", d => nodes[d.target].y)
-  .attr("stroke", "#555")
-  .attr("stroke-width", 2);
-
-/* ---------------------------
-Draw nodes
---------------------------- */
-
-const node = svg.selectAll("circle")
-  .data(nodes)
-  .enter()
-  .append("circle")
-  .attr("cx", d => d.x)
-  .attr("cy", d => d.y)
-  .attr("r", 18)
-  .on("click", onCityClick);
-
-const labels = svg.selectAll("text")
-  .data(nodes)
-  .enter()
-  .append("text")
-  .attr("x", d => d.x)
-  .attr("y", d => d.y)
-  .attr("text-anchor", "middle")
-  .attr("dy", ".35em")
-  .style("pointer-events", "none");
-
-/* ---------------------------
-Helpers
---------------------------- */
-
-function movableUnits(city) {
-  return city.units.filter(u => !u.moved);
-}
-
-function neighbors(city) {
-  return links
-    .filter(l => l.source === city.id || l.target === city.id)
-    .map(l => (l.source === city.id ? nodes[l.target] : nodes[l.source]));
-}
-
-function cityColor(city) {
-  if (city.owner === -1) return "#cccccc";
-
-  const base = city.owner === 0 ? "#4a90e2" : "#e24a4a";
-  const remaining = movableUnits(city).length;
-
-  if (city.owner === currentPlayer && remaining > 0) {
-    return d3.color(base).brighter(0.9);
+    if (linesIntersect(a, b, c, d)) return true;
   }
-
-  return base;
+  return false;
 }
 
-function updateLabels() {
-  labels.text(d => {
-    if (d.owner === currentPlayer) return d.units.length;
-    return "";
-  });
+/* -----------------------
+   Create connections
+----------------------- */
+function generateEdges() {
+  edges = [];
+
+  for (const city of cities) {
+    const neighbors = cities
+      .filter(c => c !== city)
+      .sort((a, b) => distance(city, a) - distance(city, b));
+
+    let connections = 0;
+
+    for (const n of neighbors) {
+      if (connections >= maxConnections) break;
+
+      if (city.player !== n.player && Math.random() > 0.2) {
+        continue; // mostly connect inside cluster
+      }
+
+      const exists = edges.some(e =>
+        (e.source === city.id && e.target === n.id) ||
+        (e.source === n.id && e.target === city.id)
+      );
+      if (exists) continue;
+
+      if (edgeWouldCross(city, n)) continue;
+
+      edges.push({ source: city.id, target: n.id });
+      connections++;
+    }
+  }
 }
 
-function updateColors() {
-  node.attr("fill", d => cityColor(d));
+/* -----------------------
+   Draw map
+----------------------- */
+function drawMap() {
+  svg.selectAll("*").remove();
+
+  svg.selectAll("line")
+    .data(edges)
+    .enter()
+    .append("line")
+    .attr("x1", d => cities[d.source].x)
+    .attr("y1", d => cities[d.source].y)
+    .attr("x2", d => cities[d.target].x)
+    .attr("y2", d => cities[d.target].y)
+    .attr("stroke", "#888");
+
+  const nodes = svg.selectAll("circle")
+    .data(cities)
+    .enter()
+    .append("circle")
+    .attr("cx", d => d.x)
+    .attr("cy", d => d.y)
+    .attr("r", 10)
+    .attr("fill", d => colorForCity(d))
+    .on("click", cityClicked);
+
+  svg.selectAll("text.cityLabel")
+    .data(cities)
+    .enter()
+    .append("text")
+    .attr("class", "cityLabel")
+    .attr("x", d => d.x + 12)
+    .attr("y", d => d.y + 4)
+    .text(d => visibleUnitsText(d));
 }
 
-updateLabels();
-updateColors();
+/* -----------------------
+   City coloring
+----------------------- */
+let currentPlayer = 0;
 
-/* ---------------------------
-Inspector
---------------------------- */
+function colorForCity(city) {
+  const remaining = city.units - city.movedUnits;
+
+  if (city.player === currentPlayer) {
+    return remaining > 0 ? "#4caf50" : "#a5d6a7";
+  } else {
+    return "#888";
+  }
+}
+
+function visibleUnitsText(city) {
+  if (city.player === currentPlayer) {
+    return city.units;
+  }
+  return "";
+}
+
+/* -----------------------
+   Inspector
+----------------------- */
+const inspector = document.getElementById("inspector");
+const moveInput = document.getElementById("moveAmount");
+const moveButton = document.getElementById("moveButton");
 
 let selectedCity = null;
 
-function openInspector(city) {
+function cityClicked(city) {
   selectedCity = city;
-
-  const available = movableUnits(city).length;
-
-  let html = "";
-  html += "Owner: " + (city.owner === -1 ? "Neutral" : "Player " + (city.owner + 1)) + "<br>";
-  html += "Total Units: " + city.units.length + "<br>";
-  html += "Units remaining moves: " + available + "<br><br>";
-
-  if (city.owner === currentPlayer && available > 0) {
-    html += "Move units:<br>";
-    html += `<input id="moveAmount" type="number" min="1" max="${available}" value="1"><br><br>`;
-    html += `<button id="moveButton">Select destination</button>`;
-  }
-
-  inspector.innerHTML = html;
-
-  if (city.owner === currentPlayer && available > 0) {
-    document.getElementById("moveButton").onclick = startMoveMode;
-  }
+  updateInspector();
 }
 
-function onCityClick(event, city) {
-  openInspector(city);
+function updateInspector() {
+  if (!selectedCity) return;
+
+  const remaining = selectedCity.units - selectedCity.movedUnits;
+
+  inspector.innerHTML =
+    "City " + selectedCity.id +
+    "<br>Units: " + selectedCity.units +
+    "<br>Remaining moves: " + remaining;
 }
 
-/* ---------------------------
-Move mode
---------------------------- */
+moveButton.onclick = () => {
+  if (!selectedCity) return;
+  const amount = parseInt(moveInput.value);
 
-let moveAmount = 0;
-let moveSource = null;
+  if (isNaN(amount)) return;
 
-function startMoveMode() {
-  moveAmount = parseInt(document.getElementById("moveAmount").value);
-  moveSource = selectedCity;
-  highlightNeighbors();
-}
+  const remaining = selectedCity.units - selectedCity.movedUnits;
+  if (amount > remaining) return;
 
-function highlightNeighbors() {
-  const n = neighbors(moveSource);
+  selectedCity.movedUnits += amount;
 
-  node.attr("stroke", d => n.includes(d) ? "yellow" : null)
-      .attr("stroke-width", d => n.includes(d) ? 4 : 1);
+  updateInspector();
+  drawMap();
+};
 
-  node.on("click", (event, city) => {
-    if (!n.includes(city)) return;
-    performMove(city);
-  });
-}
-
-function performMove(dest) {
-  const movable = movableUnits(moveSource);
-  const movedUnits = movable.slice(0, moveAmount);
-
-  movedUnits.forEach(u => {
-    u.moved = true;
-    dest.units.push(u);
-  });
-
-  moveSource.units = moveSource.units.filter(u => !movedUnits.includes(u));
-
-  node.attr("stroke", null);
-  node.on("click", onCityClick);
-
-  updateLabels();
-  updateColors();
-
-  openInspector(moveSource);
-}
-
-/* ---------------------------
-End turn
---------------------------- */
-
-endTurnBtn.onclick = () => {
-  nodes.forEach(n => {
-    n.units.forEach(u => {
-      u.moved = false;
-    });
-  });
-
+/* -----------------------
+   Turn system
+----------------------- */
+document.getElementById("finishTurn").onclick = () => {
   currentPlayer = (currentPlayer + 1) % numPlayers;
 
-  updateTurnText();
-  updateLabels();
-  updateColors();
+  cities.forEach(c => {
+    c.movedUnits = 0;
+  });
 
-  inspector.innerHTML = "Turn ended.";
+  drawMap();
 };
+
+/* -----------------------
+   Init
+----------------------- */
+generateCities();
+generateEdges();
+drawMap();
