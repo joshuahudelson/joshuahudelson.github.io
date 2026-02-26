@@ -1,11 +1,11 @@
 const width = 900;
 const height = 700;
 
-const nodeCount = 14; // must be even
+const nodeCount = 14; // must stay even
 const nodeRadius = 30;
 
-const spacingX = 180;
-const spacingY = 155;
+const hexSizeX = 170;
+const hexSizeY = 150;
 
 let nodes = [];
 let edges = [];
@@ -20,38 +20,45 @@ const nodeLayer = document.createElementNS("http://www.w3.org/2000/svg", "g");
 svg.appendChild(edgeLayer);
 svg.appendChild(nodeLayer);
 
-function generateHexGrid() {
+function generateHexBoard() {
   nodes = [];
 
-  let cols = 4;
-  let rows = Math.ceil(nodeCount / cols);
+  // axial hex coordinates
+  const coords = [];
+  let radius = 2; // hex radius producing ~19 cells
 
-  let startX = width / 2 - ((cols - 1) * spacingX) / 2;
-  let startY = height / 2 - ((rows - 1) * spacingY) / 2;
-
-  let id = 0;
-
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      if (id >= nodeCount) break;
-
-      let offset = r % 2 === 0 ? 0 : spacingX / 2;
-
-      let x = startX + c * spacingX + offset;
-      let y = startY + r * spacingY;
-
-      nodes.push({
-        id,
-        x,
-        y,
-        owner: null,
-        units: Math.floor(Math.random() * 4) + 1,
-        production: Math.floor(Math.random() * 3) + 1
-      });
-
-      id++;
+  for (let q = -radius; q <= radius; q++) {
+    for (let r = -radius; r <= radius; r++) {
+      const s = -q - r;
+      if (Math.abs(s) <= radius) {
+        coords.push({ q, r });
+      }
     }
   }
+
+  // shuffle and trim to nodeCount
+  coords.sort(() => Math.random() - 0.5);
+  const selected = coords.slice(0, nodeCount);
+
+  // center
+  const centerX = width / 2;
+  const centerY = height / 2;
+
+  selected.forEach((c, i) => {
+    const x = centerX + (c.q * hexSizeX);
+    const y = centerY + (c.r * hexSizeY + c.q * hexSizeY * 0.5);
+
+    nodes.push({
+      id: i,
+      q: c.q,
+      r: c.r,
+      x,
+      y,
+      owner: null,
+      units: Math.floor(Math.random() * 4) + 1,
+      production: Math.floor(Math.random() * 3) + 1
+    });
+  });
 }
 
 function assignOwnershipDiagonal() {
@@ -72,31 +79,41 @@ function assignOwnershipDiagonal() {
   });
 }
 
-function distance(a, b) {
-  return Math.hypot(a.x - b.x, a.y - b.y);
-}
-
 function generateEdges() {
   edges = [];
 
-  const neighborDist = spacingX * 1.15;
+  const coordMap = new Map();
+  nodes.forEach(n => coordMap.set(`${n.q},${n.r}`, n.id));
 
-  for (let i = 0; i < nodes.length; i++) {
-    for (let j = i + 1; j < nodes.length; j++) {
-      if (distance(nodes[i], nodes[j]) < neighborDist) {
-        edges.push({ a: nodes[i].id, b: nodes[j].id });
+  const directions = [
+    [1, 0],
+    [0, 1],
+    [-1, 1],
+    [-1, 0],
+    [0, -1],
+    [1, -1]
+  ];
+
+  nodes.forEach(node => {
+    directions.forEach(d => {
+      const key = `${node.q + d[0]},${node.r + d[1]}`;
+      if (coordMap.has(key)) {
+        const other = coordMap.get(key);
+        if (node.id < other) {
+          edges.push({ a: node.id, b: other });
+        }
       }
-    }
-  }
+    });
+  });
 
   randomlyRemoveEdges();
   ensureGraphConnected();
 }
 
-function friendlyConnectionExists(nodeId, testEdges) {
+function friendlyConnectionExists(nodeId, edgeList) {
   const node = nodes[nodeId];
 
-  return testEdges.some(e => {
+  return edgeList.some(e => {
     const other =
       e.a === nodeId ? nodes[e.b] :
       e.b === nodeId ? nodes[e.a] :
@@ -128,17 +145,15 @@ function randomlyRemoveEdges() {
 }
 
 function getNeighbors(nodeId, edgeList = edges) {
-  const neighbors = [];
-
+  const result = [];
   edgeList.forEach(e => {
-    if (e.a === nodeId) neighbors.push(e.b);
-    if (e.b === nodeId) neighbors.push(e.a);
+    if (e.a === nodeId) result.push(e.b);
+    if (e.b === nodeId) result.push(e.a);
   });
-
-  return neighbors;
+  return result;
 }
 
-function getConnectedComponents() {
+function getComponents() {
   const visited = new Set();
   const components = [];
 
@@ -146,50 +161,52 @@ function getConnectedComponents() {
     if (visited.has(node.id)) continue;
 
     const stack = [node.id];
-    const component = [];
-
+    const comp = [];
     visited.add(node.id);
 
     while (stack.length) {
       const current = stack.pop();
-      component.push(current);
+      comp.push(current);
 
-      for (let n of getNeighbors(current)) {
+      getNeighbors(current).forEach(n => {
         if (!visited.has(n)) {
           visited.add(n);
           stack.push(n);
         }
-      }
+      });
     }
 
-    components.push(component);
+    components.push(comp);
   }
 
   return components;
 }
 
 function ensureGraphConnected() {
-  let components = getConnectedComponents();
+  let comps = getComponents();
 
-  while (components.length > 1) {
-    let compA = components[0];
-    let compB = components[1];
+  while (comps.length > 1) {
+    const A = comps[0];
+    const B = comps[1];
 
-    let bestPair = null;
+    let best = null;
     let bestDist = Infinity;
 
-    for (let a of compA) {
-      for (let b of compB) {
-        let d = distance(nodes[a], nodes[b]);
+    A.forEach(a => {
+      B.forEach(b => {
+        const dx = nodes[a].x - nodes[b].x;
+        const dy = nodes[a].y - nodes[b].y;
+        const d = Math.hypot(dx, dy);
+
         if (d < bestDist) {
           bestDist = d;
-          bestPair = { a, b };
+          best = { a, b };
         }
-      }
-    }
+      });
+    });
 
-    edges.push(bestPair);
-    components = getConnectedComponents();
+    edges.push(best);
+    comps = getComponents();
   }
 }
 
@@ -236,30 +253,29 @@ function drawNodes() {
       drawNodes();
     };
 
-    const unitsText = document.createElementNS("http://www.w3.org/2000/svg", "text");
-    unitsText.setAttribute("x", node.x);
-    unitsText.setAttribute("y", node.y - 6);
-    unitsText.setAttribute("text-anchor", "middle");
-    unitsText.setAttribute("font-size", "16");
-    unitsText.textContent = node.units;
+    const units = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    units.setAttribute("x", node.x);
+    units.setAttribute("y", node.y - 8);
+    units.setAttribute("text-anchor", "middle");
+    units.setAttribute("font-size", "18");
+    units.textContent = node.units;
 
-    const prodText = document.createElementNS("http://www.w3.org/2000/svg", "text");
-    prodText.setAttribute("x", node.x);
-    prodText.setAttribute("y", node.y + 14);
-    prodText.setAttribute("text-anchor", "middle");
-    prodText.setAttribute("font-size", "14");
-    prodText.textContent = node.production;
+    const production = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    production.setAttribute("x", node.x);
+    production.setAttribute("y", node.y + 16);
+    production.setAttribute("text-anchor", "middle");
+    production.setAttribute("font-size", "14");
+    production.textContent = node.production;
 
     group.appendChild(circle);
-    group.appendChild(unitsText);
-    group.appendChild(prodText);
-
+    group.appendChild(units);
+    group.appendChild(production);
     nodeLayer.appendChild(group);
   });
 }
 
 function init() {
-  generateHexGrid();
+  generateHexBoard();
   assignOwnershipDiagonal();
   generateEdges();
   drawEdges();
