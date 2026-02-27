@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
 <meta charset="UTF-8">
 <title>Strategy Game</title>
@@ -7,16 +7,17 @@
 </head>
 <body>
 
-<div id="layout">
-  <canvas id="gameCanvas"></canvas>
+<div id="gameWrapper">
 
-  <div id="sidePanel">
+  <canvas id="gameCanvas" width="900" height="650"></canvas>
+
+  <div id="cityInspector">
     <h2>City Inspector</h2>
     <div id="cityInfo">Click a city</div>
-    <button id="moveButton">Move</button>
   </div>
+
 </div>
 
-<script src="main.js"></script>
+<script src="game.js"></script>
 </body>
 </html>
