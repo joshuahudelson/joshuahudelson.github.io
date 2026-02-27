@@ -1,16 +1,16 @@
 body {
   margin: 0;
-  font-family: sans-serif;
   background: #1e1e1e;
   color: white;
+  font-family: sans-serif;
 }
 
-#gameContainer {
+#layout {
   display: flex;
   justify-content: center;
   align-items: center;
+  gap: 30px;
   height: 100vh;
-  gap: 20px;
 }
 
 canvas {
@@ -19,7 +19,7 @@ canvas {
 }
 
 #sidePanel {
-  width: 200px;
+  width: 220px;
 }
 
 #cityInfo {
