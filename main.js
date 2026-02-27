@@ -4,7 +4,8 @@ const cityInfo = document.getElementById("cityInfo");
 
 const NODE_SIZE = 60;
 const TOTAL_NODES = 14;
-const HEX_SPACING = 130;
+
+const HEX_SIZE = 110;
 
 let nodes = [];
 let edges = [];
@@ -18,39 +19,38 @@ class Node {
     this.x = x;
     this.y = y;
     this.owner = owner;
-    this.units = [];
     this.production = Math.floor(Math.random() * 3) + 1;
   }
 }
 
 function axialToPixel(q, r) {
   return {
-    x: HEX_SPACING * (q + r / 2),
-    y: HEX_SPACING * (r * 0.86)
+    x: HEX_SIZE * (q + r / 2),
+    y: HEX_SIZE * (r * 0.866)
   };
 }
 
-function generatePositions() {
+function generateGridPositions() {
   const radius = 3;
-  const positions = [];
+  const list = [];
 
   for (let q = -radius; q <= radius; q++) {
     for (let r = -radius; r <= radius; r++) {
       if (Math.abs(q + r) <= radius) {
-        positions.push({ q, r });
+        list.push({ q, r });
       }
     }
   }
 
-  positions.sort(() => Math.random() - 0.5);
-  return positions.slice(0, TOTAL_NODES);
+  list.sort(() => Math.random() - 0.5);
+  return list.slice(0, TOTAL_NODES);
 }
 
 function generateMap() {
   nodes = [];
   edges = [];
 
-  const positions = generatePositions();
+  const positions = generateGridPositions();
   const pixels = positions.map(p => axialToPixel(p.q, p.r));
 
   const minX = Math.min(...pixels.map(p => p.x));
@@ -61,7 +61,7 @@ function generateMap() {
   const offsetX = canvas.width / 2 - (minX + maxX) / 2;
   const offsetY = canvas.height / 2 - (minY + maxY) / 2;
 
-  const angle = Math.random() * Math.PI;
+  const splitAngle = Math.random() * Math.PI;
 
   positions.forEach((p, i) => {
     const pix = axialToPixel(p.q, p.r);
@@ -69,16 +69,15 @@ function generateMap() {
     const x = pix.x + offsetX;
     const y = pix.y + offsetY;
 
-    const split = x * Math.cos(angle) + y * Math.sin(angle);
-    const owner = split > 0 ? "red" : "blue";
+    const value = x * Math.cos(splitAngle) + y * Math.sin(splitAngle);
+    const owner = value > 0 ? "red" : "blue";
 
     nodes.push(new Node(i, p.q, p.r, x, y, owner));
   });
 
   balanceTeams();
-  buildHexEdges();
-  pruneEdges();
-  repairConnectivity();
+  buildNeighborEdges();
+  randomlyRemoveEdges();
 }
 
 function balanceTeams() {
@@ -94,7 +93,7 @@ function balanceTeams() {
   }
 }
 
-function buildHexEdges() {
+function buildNeighborEdges() {
   const dirs = [
     [1, 0], [-1, 0],
     [0, 1], [0, -1],
@@ -116,65 +115,16 @@ function buildHexEdges() {
   });
 }
 
-function pruneEdges() {
-  edges = edges.filter(e => Math.random() > 0.33);
-}
+function randomlyRemoveEdges() {
+  const kept = [];
 
-function getComponents() {
-  const visited = new Set();
-  const components = [];
-
-  nodes.forEach(n => {
-    if (visited.has(n.id)) return;
-
-    const stack = [n.id];
-    const comp = [];
-
-    while (stack.length) {
-      const id = stack.pop();
-      if (visited.has(id)) continue;
-
-      visited.add(id);
-      comp.push(id);
-
-      edges.forEach(e => {
-        if (e[0] === id && !visited.has(e[1])) stack.push(e[1]);
-        if (e[1] === id && !visited.has(e[0])) stack.push(e[0]);
-      });
+  edges.forEach(e => {
+    if (Math.random() > 0.33) {
+      kept.push(e);
     }
-
-    components.push(comp);
   });
 
-  return components;
-}
-
-function repairConnectivity() {
-  let comps = getComponents();
-
-  while (comps.length > 1) {
-    const a = comps[0];
-    const b = comps[1];
-
-    let bestEdge = null;
-    let bestDist = Infinity;
-
-    a.forEach(idA => {
-      b.forEach(idB => {
-        const dx = nodes[idA].x - nodes[idB].x;
-        const dy = nodes[idA].y - nodes[idB].y;
-        const dist = dx * dx + dy * dy;
-
-        if (dist < bestDist) {
-          bestDist = dist;
-          bestEdge = [idA, idB];
-        }
-      });
-    });
-
-    edges.push(bestEdge);
-    comps = getComponents();
-  }
+  edges = kept;
 }
 
 function draw() {
@@ -187,7 +137,8 @@ function draw() {
     ctx.beginPath();
     ctx.moveTo(a.x, a.y);
     ctx.lineTo(b.x, b.y);
-    ctx.strokeStyle = "#555";
+    ctx.strokeStyle = "#444";
+    ctx.lineWidth = 2;
     ctx.stroke();
   });
 
@@ -198,14 +149,15 @@ function draw() {
     ctx.fillStyle = selectedNode === n ? "yellow" : n.owner;
     ctx.fill();
 
-    ctx.strokeStyle = "#000";
+    ctx.strokeStyle = "black";
+    ctx.lineWidth = 2;
     ctx.stroke();
 
     ctx.fillStyle = "white";
     ctx.textAlign = "center";
     ctx.font = "16px sans-serif";
 
-    ctx.fillText(n.production, n.x, n.y + 5);
+    ctx.fillText(n.production, n.x, n.y + 6);
   });
 }
 
@@ -220,6 +172,7 @@ canvas.onclick = function (e) {
 
     if (Math.sqrt(dx * dx + dy * dy) < NODE_SIZE / 2) {
       selectedNode = n;
+
       cityInfo.innerHTML = `
 Owner: ${n.owner}<br>
 Production: ${n.production}
