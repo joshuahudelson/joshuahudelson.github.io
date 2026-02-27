@@ -3,12 +3,10 @@ const ctx = canvas.getContext("2d");
 
 const cityInfo = document.getElementById("cityInfo");
 
-canvas.width = 900;
-canvas.height = 700;
+canvas.width = 950;
+canvas.height = 720;
 
 const NODE_SIZE = 60;
-const GRID_COLS = 4;
-const GRID_ROWS = 4; // gives 16 possible positions, we'll use 14
 const TOTAL_NODES = 14;
 
 let nodes = [];
@@ -44,42 +42,69 @@ class Node {
   }
 }
 
-function generateHexGrid() {
+function generateMap() {
   nodes = [];
   edges = [];
 
-  const spacingX = 180;
-  const spacingY = 150;
-  const offsetX = canvas.width / 2 - spacingX * 1.5;
-  const offsetY = canvas.height / 2 - spacingY * 1.5;
+  const spacing = 150;
 
-  let id = 0;
+  // small random shift so map changes each game
+  const offsetX = canvas.width / 2 + (Math.random() - 0.5) * 120;
+  const offsetY = canvas.height / 2 + (Math.random() - 0.5) * 120;
 
-  for (let r = 0; r < GRID_ROWS; r++) {
-    for (let c = 0; c < GRID_COLS; c++) {
-      if (id >= TOTAL_NODES) continue;
+  // hex grid template positions
+  let positions = [];
 
-      const x = offsetX + c * spacingX + (r % 2) * spacingX / 2;
-      const y = offsetY + r * spacingY;
+  const radius = 2;
 
-      nodes.push(new Node(
-        id,
-        x,
-        y,
-        id < TOTAL_NODES / 2 ? "red" : "blue"
-      ));
-
-      id++;
+  for (let q = -radius; q <= radius; q++) {
+    for (let r = -radius; r <= radius; r++) {
+      const x = offsetX + (q + r / 2) * spacing;
+      const y = offsetY + r * spacing * 0.85;
+      positions.push({ x, y });
     }
   }
 
+  // shuffle positions
+  positions.sort(() => Math.random() - 0.5);
+
+  positions = positions.slice(0, TOTAL_NODES);
+
+  // ownership diagonal split
+  const angle = Math.random() * Math.PI;
+
+  positions.forEach((p, i) => {
+    const value = p.x * Math.cos(angle) + p.y * Math.sin(angle);
+    const owner = value > 0 ? "red" : "blue";
+
+    nodes.push(new Node(i, p.x, p.y, owner));
+  });
+
+  balanceTeams();
   createEdges();
-  ensureConnectedGraph();
+  ensureConnected();
   seedUnits();
 }
 
+function balanceTeams() {
+  let red = nodes.filter(n => n.owner === "red");
+  let blue = nodes.filter(n => n.owner === "blue");
+
+  while (red.length > TOTAL_NODES / 2) {
+    const n = red.pop();
+    n.owner = "blue";
+    blue.push(n);
+  }
+
+  while (blue.length > TOTAL_NODES / 2) {
+    const n = blue.pop();
+    n.owner = "red";
+    red.push(n);
+  }
+}
+
 function createEdges() {
-  const maxDist = 200;
+  const maxDist = 170;
 
   for (let i = 0; i < nodes.length; i++) {
     for (let j = i + 1; j < nodes.length; j++) {
@@ -94,7 +119,7 @@ function createEdges() {
   }
 }
 
-function ensureConnectedGraph() {
+function ensureConnected() {
   const visited = new Set();
 
   function dfs(n) {
@@ -107,13 +132,11 @@ function ensureConnectedGraph() {
 
   dfs(0);
 
-  if (visited.size !== nodes.length) {
-    for (let i = 0; i < nodes.length; i++) {
-      if (!visited.has(i)) {
-        edges.push([0, i]);
-      }
+  nodes.forEach(n => {
+    if (!visited.has(n.id)) {
+      edges.push([0, n.id]);
     }
-  }
+  });
 }
 
 function seedUnits() {
@@ -140,13 +163,9 @@ function draw() {
     ctx.beginPath();
     ctx.arc(n.x, n.y, NODE_SIZE / 2, 0, Math.PI * 2);
 
-    if (selectedNode === n) {
-      ctx.fillStyle = "yellow";
-    } else {
-      ctx.fillStyle = n.owner;
-    }
-
+    ctx.fillStyle = selectedNode === n ? "yellow" : n.owner;
     ctx.fill();
+
     ctx.strokeStyle = "#000";
     ctx.stroke();
 
@@ -155,7 +174,7 @@ function draw() {
     ctx.fillStyle = "white";
     ctx.textAlign = "center";
     ctx.fillText(combatUnits, n.x, n.y - 8);
-    ctx.fillText(n.production, n.x, n.y + 12);
+    ctx.fillText(n.production, n.x, n.y + 14);
   });
 }
 
@@ -183,11 +202,11 @@ function updateInspector() {
   const combat = selectedNode.units.filter(u => u.type === "combat").length;
 
   cityInfo.innerHTML = `
-    Owner: ${selectedNode.owner}<br>
-    Combat Units: ${combat}<br>
-    Production: ${selectedNode.production}
-  `;
+Owner: ${selectedNode.owner}<br>
+Combat Units: ${combat}<br>
+Production: ${selectedNode.production}
+`;
 }
 
-generateHexGrid();
+generateMap();
 draw();
