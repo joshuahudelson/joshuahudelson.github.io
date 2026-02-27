@@ -1,30 +1,29 @@
 body {
   margin: 0;
-  background: #1e1e1e;
-  color: white;
+  background: #202020;
   font-family: sans-serif;
-}
-
-#layout {
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 30px;
   height: 100vh;
 }
 
-canvas {
-  background: #111;
-  border: 1px solid #444;
+#gameWrapper {
+  display: flex;
+  gap: 20px;
+  align-items: center;
 }
 
-#sidePanel {
+#gameCanvas {
+  background: white;
+  border: 2px solid black;
+}
+
+#cityInspector {
   width: 220px;
-}
-
-#cityInfo {
-  margin-top: 10px;
+  height: 650px;
+  background: #f4f4f4;
+  border: 2px solid black;
   padding: 10px;
-  background: #222;
-  border: 1px solid #444;
+  box-sizing: border-box;
 }
